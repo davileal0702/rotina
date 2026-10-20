@@ -151,6 +151,21 @@ public class EngineTests
     public void Sites_are_normalized_to_a_domain(string input, string? expected) =>
         Assert.Equal(expected, Sites.Normalize(input));
 
+    [Theory]
+    [InlineData(@"C:\Games\Jogo.exe", true)]                                       // not allowed
+    [InlineData(@"c:\program files\microsoft vs code\code.exe", false)]            // allowed, other case
+    [InlineData(@"C:\Windows\explorer.exe", false)]                                // shell
+    [InlineData(@"C:\Windows\SystemApps\StartMenuExperienceHost.exe", false)]      // system part
+    [InlineData(@"C:\Windows\System32\Taskmgr.exe", true)]                         // tool that could undo the block
+    [InlineData(@"C:\Windows\ImmersiveControlPanel\SystemSettings.exe", true)]     // Settings
+    [InlineData(@"C:\Windows\System32\cmd.exe", false)]                            // tool, but allowed
+    [InlineData(@"C:\Program Files\Rotina\App\Rotina.App.exe", false)]             // Rotina itself
+    public void Only_unlisted_programs_and_risky_windows_tools_are_blocked(string exe, bool blocked)
+    {
+        string[] allowed = [@"C:\Program Files\Microsoft VS Code\Code.exe", @"C:\WINDOWS\system32\cmd.exe"];
+        Assert.Equal(blocked, Blocking.ShouldBlock(exe, allowed, @"C:\Windows\", @"C:\Program Files\Rotina\App\Rotina.App.exe"));
+    }
+
     [Fact]
     public void Unchanged_schedule_row_is_the_same_slot()
     {

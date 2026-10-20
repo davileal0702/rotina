@@ -33,15 +33,87 @@ public partial class MainWindow : Window
     List<ScheduleEntry> schedule = [];
     DateTime todayShown;
 
+    readonly System.Windows.Forms.NotifyIcon tray = new() { Visible = true };
+    string? trayColor;
+    bool exiting;
+
     public MainWindow()
     {
         InitializeComponent();
         ScheduleGrid.ItemsSource = slots;
         ShowActivity(null);
         _ = AppCatalog.All(); // warm the app list so the picker opens fast
+
+        tray.Icon = TrayIcon.Create(Palette[0].Hex);
+        tray.Text = "Rotina";
+        tray.DoubleClick += (_, _) => ShowFromTray();
+        tray.ContextMenuStrip = new System.Windows.Forms.ContextMenuStrip();
+        tray.ContextMenuStrip.Items.Add("Abrir Rotina", null, (_, _) => ShowFromTray());
+        tray.ContextMenuStrip.Items.Add("Sair", null, (_, _) => Exit());
+        Application.Current.SessionEnding += (_, _) => Exit();
+
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += async (_, _) => await RefreshState();
         timer.Start();
+    }
+
+    public void ShowFromTray()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    // Closing the window keeps Rotina running in the tray; blocking must not depend on the window being open.
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!exiting) { e.Cancel = true; Hide(); }
+        base.OnClosing(e);
+    }
+
+    void Exit()
+    {
+        exiting = true;
+        tray.Visible = false;
+        tray.Dispose();
+        Application.Current.Shutdown();
+    }
+
+    void UpdateTray(StateDto? s)
+    {
+        var snap = s?.Session?.RulesSnapshot;
+        var text = s?.State switch
+        {
+            null => "Rotina · serviço parado",
+            RuleState.Free => "Rotina · Livre",
+            RuleState.Locked => $"Rotina · {snap!.Name} · faltam {Clock(s.SecondsUntilCompletable)}",
+            _ => $"Rotina · {snap!.Name} · pode encerrar",
+        };
+        tray.Text = text.Length > 127 ? text[..127] : text;
+        var color = snap?.Color ?? Palette[0].Hex;
+        if (color == trayColor) return;
+        trayColor = color;
+        var old = tray.Icon;
+        tray.Icon = TrayIcon.Create(color);
+        old?.Dispose();
+    }
+
+    void EnforceBlocking(StateDto s)
+    {
+        if (s.State == RuleState.Free || s.Allowed is null || s.Session is null) return;
+        foreach (var b in Blocker.Enforce(s.Allowed.Windows))
+        {
+            var name = AppCatalog.Describe(b.Path).Name;
+            var activity = s.Session.RulesSnapshot;
+            var wait = s.State == RuleState.Locked
+                ? $"Faltam {Clock(s.SecondsUntilCompletable)} para poder encerrar."
+                : "Você já pode encerrar a atividade no Rotina.";
+            BlockToast.Notify(
+                b.Closed ? $"{name} foi fechado" : $"{name} não está liberado",
+                b.Closed ? $"Não está liberado em {activity.Name}. {wait}"
+                         : $"Não está liberado em {activity.Name}, mas roda como administrador e não pôde ser fechado.",
+                ColorBrush(activity.Color));
+        }
     }
 
     // ---- State (home screen) ----
@@ -60,10 +132,13 @@ public partial class MainWindow : Window
                     "Inicie o Rotina Service. Enquanto isso, nada pode ser editado.", null);
                 EndButton.Visibility = Visibility.Collapsed;
                 StartList.IsEnabled = false;
+                UpdateTray(null);
                 return;
             }
+            EnforceBlocking(s); // first, so a blocked app gets no extra second while the UI updates
             if (!online) { online = true; await ReloadAll(); }
             state = s;
+            UpdateTray(s);
             var snap = s.Session?.RulesSnapshot;
             var queued = activities.FirstOrDefault(a => a.Id == s.QueuedActivityId)?.Name;
             switch (s.State)

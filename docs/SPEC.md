@@ -277,7 +277,7 @@ Estes ajustes valem por cima do texto acima quando houver diferença.
 
 **Arquitetura**
 
-- No PC são 2 programas, não 3: o Rotina Service e o Rotina App (WPF). O App junta a interface de edição e o papel do agente (ícone na bandeja e avisos de bloqueio).
+- No PC são 2 programas, não 3: o Rotina Service e o Rotina App (WPF). O App junta a interface de edição e o papel do agente (ícone na bandeja e avisos de bloqueio). Quem detecta e fecha os apps é o App, não o serviço: o serviço roda na sessão 0 e não enxerga as janelas do usuário. O serviço reabre o App sempre que ele for fechado durante uma atividade.
 - Interface em WPF, não WinUI 3.
 - Sem mDNS na v1: o celular usa o IP e a porta que vêm no QR code. Reserve o IP do PC no roteador.
 - .NET 10 (LTS).

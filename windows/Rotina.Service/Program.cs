@@ -137,12 +137,16 @@ async Task RunScheduler(CancellationToken stop)
         {
             try
             {
+                bool active;
                 lock (gate)
                 {
                     var r = engine.Tick(store.CurrentSession(), store.All<ScheduleEntry>("schedule"), Activities(),
                         id => store.Exists("session", id), DateTimeOffset.UtcNow);
                     Apply(r.Ended, r.Started);
+                    active = store.CurrentSession() is not null;
                 }
+                // The app does the blocking; outside activities the service leaves the user alone.
+                if (active) AgentLauncher.EnsureRunning(app.Logger);
             }
             catch (Exception e) { app.Logger.LogError(e, "Falha no ciclo da agenda"); }
         }

@@ -14,7 +14,8 @@ App pessoal que trava o PC Windows e o celular Android na atividade da rotina. A
 
 - `Rotina.Core`: modelos e o motor de regras (`Engine`), puro, sem I/O. Toda regra de estado, fila, agenda e trava de edição mora aqui e tem teste.
 - `Rotina.Service`: serviço do Windows (LocalSystem). Kestrel em `127.0.0.1:47800`, SQLite em `%ProgramData%\Rotina\rotina.db`, ciclo de 1 s que chama `Engine.Tick`.
-- `Rotina.App`: WPF. Interface de edição; nas próximas fases também ícone na bandeja e avisos de bloqueio.
+- `Rotina.App`: WPF. Interface de edição, ícone na bandeja, aviso de bloqueio e o próprio bloqueio de apps (`Blocker`): o serviço roda na sessão 0 e não vê as janelas do usuário, então quem fecha os apps é o App. Instância única; `--background` abre só na bandeja. O serviço reabre o App (`AgentLauncher`) enquanto houver atividade.
+- Cuidado ao testar: durante uma atividade, toda janela fora da lista é fechada, inclusive editor, terminal e navegador. Libere o que estiver usando.
 - `Rotina.Tests`: xUnit do `Engine`.
 
 Banco: uma tabela `records(kind, id, json, rev)`. Cada entidade é um JSON (camelCase, datas ISO UTC). `rev` cresce a cada escrita, para a sincronização da fase 5. Exclusão é lógica (`deleted`).
