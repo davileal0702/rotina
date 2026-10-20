@@ -32,6 +32,11 @@ dotnet run --project windows/Rotina.App
 
 Instalar como serviço (PowerShell como administrador): `windows/install-service.ps1` (`-Uninstall` remove).
 
+## Extensão do Chrome (`chrome-extension/`, Manifest V3)
+
+- `background.js` lê `GET /api/v1/state` e aplica regras dinâmicas de `declarativeNetRequest` (só `main_frame` e `sub_frame`). As regras puras ficam em `rules.js`, testadas com `node --test chrome-extension/rules.test.mjs`.
+- Para testar: `chrome://extensions`, ative o modo desenvolvedor, "Carregar sem compactação" e escolha a pasta `chrome-extension`.
+
 ## Pendências conhecidas
 
 - Fase 5: abrir a API para a rede com token; hoje só aceita localhost e sem autenticação.

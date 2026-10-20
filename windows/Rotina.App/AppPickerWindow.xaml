@@ -1,7 +1,7 @@
 <Window x:Class="Rotina.App.AppPickerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Adicionar apps" Height="560" Width="520" MinHeight="360" MinWidth="420"
+        Title="Adicionar apps" Icon="/rotina.ico" Height="560" Width="520" MinHeight="360" MinWidth="420"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="{StaticResource BgBrush}" FontFamily="{StaticResource UiFont}" FontSize="14"
         Foreground="{StaticResource TextBrush}">

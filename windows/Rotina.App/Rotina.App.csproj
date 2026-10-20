@@ -12,7 +12,14 @@
     <UseWPF>true</UseWPF>
     <!-- For app icons now and the tray icon in phase 2. -->
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>rotina.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Generated from docs/brand/rotina-icon.png. -->
+    <Resource Include="rotina.ico" />
+    <Resource Include="rotina-64.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Keep WPF names (MessageBox, Application, Color) unambiguous. -->

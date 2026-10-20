@@ -7,6 +7,13 @@ namespace Rotina.App;
 /// <summary>Draws the tray icon: a clock on a circle in the current activity's color.</summary>
 static class TrayIcon
 {
+    /// <summary>The Rotina icon at the tray's size (from the embedded rotina.ico).</summary>
+    public static Icon App()
+    {
+        using var stream = System.Windows.Application.GetResourceStream(new Uri("/rotina.ico", UriKind.Relative)).Stream;
+        return new Icon(stream, System.Windows.Forms.SystemInformation.SmallIconSize);
+    }
+
     public static Icon Create(string hex)
     {
         using var bmp = new Bitmap(32, 32);

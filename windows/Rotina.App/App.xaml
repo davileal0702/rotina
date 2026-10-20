@@ -289,10 +289,8 @@
                             <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0" Padding="14,24">
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="12,0,0,28">
-                                        <Border Width="28" Height="28" CornerRadius="7" Background="{StaticResource PrimaryBrush}" Margin="0,0,10,0">
-                                            <Path Data="M12,3 A9,9 0 1 1 11.99,3 M12,7 V12 L15,14" Stroke="White" StrokeThickness="2"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Stretch="Uniform" Margin="6"/>
-                                        </Border>
+                                        <Image Source="/rotina-64.png" Width="32" Height="32" Margin="0,0,10,0"
+                                               RenderOptions.BitmapScalingMode="HighQuality"/>
                                         <TextBlock Text="Rotina" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
                                     </StackPanel>
                                     <StackPanel IsItemsHost="True"/>

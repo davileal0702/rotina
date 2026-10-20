@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Site bloqueado · Rotina</title>
+  <link rel="icon" href="icons/icon32.png">
+  <style>
+    :root { --bg: #F4FBFA; --card: #FFFFFF; --line: #D5E3E1; --text: #134E4A; --muted: #475569; --primary: #0F766E; --chip: #E8F3F1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+           background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+    main { width: 100%; max-width: 560px; background: var(--card); border: 1px solid var(--line);
+           border-left: 8px solid var(--accent, var(--primary)); border-radius: 12px; padding: 32px; }
+    .label { font-size: 13px; letter-spacing: .04em; color: var(--muted); margin: 0; }
+    h1 { font-size: 26px; margin: 4px 0 0; }
+    .clock { font-size: 44px; font-weight: 600; color: var(--primary); margin: 8px 0 0; font-variant-numeric: tabular-nums; }
+    p { margin: 8px 0 0; color: var(--muted); }
+    h2 { font-size: 16px; margin: 28px 0 8px; }
+    ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    li { background: var(--chip); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 14px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="label">SITE BLOQUEADO</p>
+    <h1 id="title">Este site não está liberado</h1>
+    <div class="clock" id="clock" role="timer" aria-live="off" hidden></div>
+    <p id="detail">Verificando a atividade atual...</p>
+    <section id="allowed-section" hidden>
+      <h2>Sites liberados nesta atividade</h2>
+      <ul id="allowed"></ul>
+    </section>
+  </main>
+  <script src="blocked.js"></script>
+</body>
+</html>

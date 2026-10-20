@@ -44,7 +44,8 @@ public partial class MainWindow : Window
         ShowActivity(null);
         _ = AppCatalog.All(); // warm the app list so the picker opens fast
 
-        tray.Icon = TrayIcon.Create(Palette[0].Hex);
+        tray.Icon = TrayIcon.App();
+        trayColor = "app";
         tray.Text = "Rotina";
         tray.DoubleClick += (_, _) => ShowFromTray();
         tray.ContextMenuStrip = new System.Windows.Forms.ContextMenuStrip();
@@ -90,11 +91,12 @@ public partial class MainWindow : Window
             _ => $"Rotina · {snap!.Name} · pode encerrar",
         };
         tray.Text = text.Length > 127 ? text[..127] : text;
-        var color = snap?.Color ?? Palette[0].Hex;
+        // Free: the app's own icon. During an activity: a dot in the activity's color.
+        var color = snap?.Color ?? "app";
         if (color == trayColor) return;
         trayColor = color;
         var old = tray.Icon;
-        tray.Icon = TrayIcon.Create(color);
+        tray.Icon = snap is null ? TrayIcon.App() : TrayIcon.Create(color);
         old?.Dispose();
     }
 
