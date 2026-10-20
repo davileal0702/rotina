@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Rotina.App/Rotina.App.csproj" />
+  <Project Path="Rotina.Core/Rotina.Core.csproj" />
+  <Project Path="Rotina.Service/Rotina.Service.csproj" />
+  <Project Path="Rotina.Tests/Rotina.Tests.csproj" />
+</Solution>

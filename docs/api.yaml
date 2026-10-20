@@ -1,0 +1,144 @@
+openapi: 3.1.0
+info:
+  title: Rotina API local
+  version: "1"
+  description: |
+    Servida pelo Rotina Service em http://127.0.0.1:47800/api/v1.
+    JSON em camelCase; enums em camelCase ("locked", "monday"); datas em ISO 8601 UTC; horas em "HH:mm:ss".
+    Até a fase 5 só escuta em localhost e não exige token. Erros de regra voltam como 409 { "error": "mensagem" }.
+servers:
+  - url: http://127.0.0.1:47800/api/v1
+paths:
+  /health:
+    get:
+      responses:
+        "200": { description: Serviço no ar, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+  /state:
+    get:
+      responses:
+        "200": { description: Estado atual, content: { application/json: { schema: { $ref: "#/components/schemas/State" } } } }
+  /activities:
+    get:
+      responses:
+        "200": { description: Atividades não excluídas, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Activity" } } } } }
+    post:
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Activity" } } } }
+      responses:
+        "200": { description: Criada (id gerado pelo serviço), content: { application/json: { schema: { $ref: "#/components/schemas/Activity" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+  /activities/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    put:
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Activity" } } } }
+      responses:
+        "200": { description: Salva, content: { application/json: { schema: { $ref: "#/components/schemas/Activity" } } } }
+        "404": { description: Não existe }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      description: Exclusão lógica; também exclui os horários da atividade.
+      responses:
+        "204": { description: Excluída }
+        "404": { description: Não existe }
+        "409": { $ref: "#/components/responses/Error" }
+  /schedule:
+    get:
+      responses:
+        "200": { description: Agenda, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ScheduleEntry" } } } } }
+    put:
+      description: Substitui a agenda inteira. Linhas ausentes são excluídas; linhas sem mudança mantêm o updatedAt.
+      requestBody: { required: true, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ScheduleEntry" } } } } }
+      responses:
+        "200":
+          description: Agenda salva e avisos de sobreposição
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries: { type: array, items: { $ref: "#/components/schemas/ScheduleEntry" } }
+                  warnings: { type: array, items: { type: string } }
+        "400": { $ref: "#/components/responses/Error" }
+  /sessions/start:
+    post:
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [activityId], properties: { activityId: { type: string, format: uuid } } } } } }
+      responses:
+        "200": { description: Sessão iniciada, content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } } }
+        "404": { description: Atividade não existe }
+        "409": { $ref: "#/components/responses/Error" }
+  /sessions/{id}/end:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      responses:
+        "200": { description: Encerrada, content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } } }
+        "404": { description: Não é a sessão em andamento }
+        "409": { $ref: "#/components/responses/Error" }
+  /always-allowed:
+    get:
+      responses:
+        "200": { description: Lista global, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AlwaysAllowed" } } } } }
+    put:
+      requestBody: { required: true, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AlwaysAllowed" } } } } }
+      responses:
+        "200": { description: Salva }
+        "409": { $ref: "#/components/responses/Error" }
+components:
+  responses:
+    Error:
+      description: Regra violada ou dado inválido
+      content: { application/json: { schema: { type: object, properties: { error: { type: string } } } } }
+  schemas:
+    Activity:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string, example: "#4A90D9" }
+        minDurationMinutes: { type: integer, minimum: 1, description: "Em modo desenvolvimento conta como segundos" }
+        allowedAndroidPackages: { type: array, items: { type: string } }
+        allowedWindowsExecutables: { type: array, items: { type: string }, description: Caminho completo do .exe }
+        allowedSites: { type: array, items: { type: string }, description: Domínio; inclui subdomínios }
+        updatedAt: { type: string, format: date-time }
+        deleted: { type: boolean }
+    ScheduleEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        activityId: { type: string, format: uuid }
+        daysOfWeek: { type: array, items: { type: string, enum: [sunday, monday, tuesday, wednesday, thursday, friday, saturday] } }
+        startTime: { type: string, example: "08:00:00", description: Hora no fuso fixo das configurações }
+        enabled: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+        deleted: { type: boolean }
+    Session:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: "Agendada: 16 primeiros bytes de SHA-256('schedule:{scheduleEntryId}:{yyyy-MM-dd}')" }
+        activityId: { type: string, format: uuid }
+        startedAt: { type: string, format: date-time }
+        minEndsAt: { type: string, format: date-time }
+        endedAt: { type: [string, "null"], format: date-time }
+        origin: { type: string, enum: [schedule, manual] }
+        deviceId: { type: string }
+        rulesSnapshot: { $ref: "#/components/schemas/Activity" }
+    AlwaysAllowed:
+      type: object
+      properties:
+        platform: { type: string, enum: [android, windows, web] }
+        identifier: { type: string }
+    State:
+      type: object
+      properties:
+        state: { type: string, enum: [free, locked, completable] }
+        session: { oneOf: [{ $ref: "#/components/schemas/Session" }, { type: "null" }] }
+        secondsUntilCompletable: { type: integer }
+        allowed:
+          description: Listas efetivas (atividade + sempre liberados); null quando livre
+          oneOf:
+            - type: object
+              properties:
+                android: { type: array, items: { type: string } }
+                windows: { type: array, items: { type: string } }
+                web: { type: array, items: { type: string } }
+            - type: "null"
+        queuedActivityId: { type: [string, "null"], format: uuid }
+        mode: { type: string, enum: [development, production] }

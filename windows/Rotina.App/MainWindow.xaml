@@ -1,0 +1,248 @@
+<Window x:Class="Rotina.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Rotina.App"
+        Title="Rotina" Height="740" Width="1100" MinWidth="860" MinHeight="580"
+        Background="{StaticResource BgBrush}" FontFamily="{StaticResource UiFont}" FontSize="14"
+        Foreground="{StaticResource TextBrush}">
+    <TabControl x:Name="Nav" Style="{StaticResource NavTabs}">
+
+        <!-- ================= Início ================= -->
+        <TabItem AutomationProperties.Name="Início">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{StaticResource NavIcon}" Data="M3,10 L12,3 L21,10 V21 H15 V14 H9 V21 H3 Z"/>
+                    <TextBlock Text="Início" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                </StackPanel>
+            </TabItem.Header>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel MaxWidth="920" HorizontalAlignment="Stretch">
+                    <TextBlock Text="Início" Style="{StaticResource H1}"/>
+
+                    <Border Style="{StaticResource Card}" Margin="0,18,0,0" Padding="0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="StateAccent" CornerRadius="10,0,0,10" Background="{StaticResource LineBrush}"/>
+                            <StackPanel Grid.Column="1" Margin="24,22">
+                                <TextBlock x:Name="StateLabel" Style="{StaticResource Caption}" Text="AGORA"/>
+                                <TextBlock x:Name="StateTitle" FontSize="24" FontWeight="SemiBold" Text="Conectando..." Margin="0,2,0,0"/>
+                                <TextBlock x:Name="StateClock" FontSize="46" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"
+                                           Visibility="Collapsed" AutomationProperties.LiveSetting="Polite"/>
+                                <TextBlock x:Name="StateDetail" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <Button x:Name="EndButton" Grid.Column="2" Content="Encerrar atividade" Style="{StaticResource PrimaryButton}"
+                                    VerticalAlignment="Center" Margin="0,0,24,0" Click="End_Click" Visibility="Collapsed"/>
+                        </Grid>
+                    </Border>
+                    <TextBlock x:Name="DevNote" Style="{StaticResource Caption}" Margin="4,8,0,0" Visibility="Collapsed"
+                               Text="Modo desenvolvimento: os tempos mínimos contam em segundos, não em minutos."/>
+
+                    <TextBlock Text="Iniciar atividade" Style="{StaticResource H2}" Margin="0,30,0,4"/>
+                    <TextBlock x:Name="StartHint" Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                    <ItemsControl x:Name="StartList" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource TileButton}" Tag="{Binding}" Click="Start_Click"
+                                        AutomationProperties.Name="{Binding Name, StringFormat=Iniciar {0}}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="12" Height="12" Fill="{Binding Color}" Margin="0,0,8,0"/>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="150"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding MinDurationMinutes, StringFormat=mínimo de {0} min}" Style="{StaticResource Caption}" Margin="20,4,0,0"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="Hoje" Style="{StaticResource H2}" Margin="0,22,0,10"/>
+                    <Border Style="{StaticResource Card}" Padding="8">
+                        <StackPanel>
+                            <ItemsControl x:Name="TodayList" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="12,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="64"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Time}" FontWeight="SemiBold"/>
+                                            <Ellipse Grid.Column="1" Width="10" Height="10" Fill="{Binding Color}" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Name}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="TodayEmpty" Style="{StaticResource Muted}" Margin="12,8"
+                                       Text="Nada agendado para hoje. Monte a semana na aba Agenda."/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- ================= Atividades ================= -->
+        <TabItem AutomationProperties.Name="Atividades">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{StaticResource NavIcon}" Data="M9,6 H21 M9,12 H21 M9,18 H21 M4,6 H4.01 M4,12 H4.01 M4,18 H4.01"/>
+                    <TextBlock Text="Atividades" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                </StackPanel>
+            </TabItem.Header>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260"/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+                <DockPanel Margin="0,0,24,0">
+                    <TextBlock DockPanel.Dock="Top" Text="Atividades" Style="{StaticResource H1}" Margin="0,0,0,18"/>
+                    <Button DockPanel.Dock="Bottom" Content="Nova atividade" Style="{StaticResource PrimaryButton}" Margin="0,12,0,0" Click="NewActivity_Click"/>
+                    <Grid>
+                        <ListBox x:Name="ActivityList" Style="{StaticResource CardList}" SelectionChanged="ActivityList_SelectionChanged"
+                                 AutomationProperties.Name="Atividades">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="12" Height="12" Fill="{Binding Color}" Margin="0,0,10,0"/>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding MinDurationMinutes, StringFormat=mínimo de {0} min}" Style="{StaticResource Caption}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock x:Name="ActivitiesEmpty" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="18" TextAlignment="Center"
+                                   VerticalAlignment="Center" Text="Nenhuma atividade ainda. Clique em Nova atividade."/>
+                    </Grid>
+                </DockPanel>
+
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                    <Border Style="{StaticResource Card}" MaxWidth="680" HorizontalAlignment="Left">
+                        <StackPanel>
+                            <TextBlock x:Name="FormTitle" Text="Nova atividade" Style="{StaticResource H2}"/>
+                            <Border x:Name="RunningNote" Background="{StaticResource AccentSoftBrush}" CornerRadius="6" Padding="12,8" Margin="0,12,0,0" Visibility="Collapsed">
+                                <TextBlock Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap"
+                                           Text="Esta atividade está em andamento e não pode ser editada nem excluída agora."/>
+                            </Border>
+
+                            <Label Content="_Nome" Target="{Binding ElementName=NameBox}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="NameBox"/>
+
+                            <Label Content="_Cor" Target="{Binding ElementName=ColorList}" Style="{StaticResource FieldLabel}"/>
+                            <ListBox x:Name="ColorList" Style="{StaticResource SwatchList}" SelectedValuePath="Hex" AutomationProperties.Name="Cor"/>
+
+                            <Label Content="_Tempo mínimo" Target="{Binding ElementName=MinBox}" Style="{StaticResource FieldLabel}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="MinBox" Width="90"/>
+                                <TextBlock Text="minutos" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Text="Antes disso não dá para encerrar nem trocar de atividade." Style="{StaticResource Caption}" Margin="0,4,0,0"/>
+
+                            <Label Content="Apps do Windows liberados" Style="{StaticResource FieldLabel}"/>
+                            <local:ChipEditor x:Name="WinChips" Kind="App"/>
+
+                            <Label Content="Sites liberados" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Text="Liberar youtube.com também libera m.youtube.com." Style="{StaticResource Caption}" Margin="0,0,0,6"/>
+                            <local:ChipEditor x:Name="SiteChips" Kind="Site" InputLabel="Novo site"/>
+
+                            <Label Content="Apps do Android liberados" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       Text="Por enquanto digite o pacote (ex.: com.spotify.music). A lista de apps do celular chega com a sincronização."/>
+                            <local:ChipEditor x:Name="AndroidChips" Kind="Text" InputLabel="Novo pacote Android"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
+                                <Button x:Name="SaveActivityButton" Content="Salvar" Style="{StaticResource PrimaryButton}" Click="SaveActivity_Click"/>
+                                <Button x:Name="DeleteButton" Content="Excluir" Style="{StaticResource DangerButton}" Margin="8,0,0,0" Click="DeleteActivity_Click"/>
+                                <TextBlock x:Name="ActivityStatus" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </Grid>
+        </TabItem>
+
+        <!-- ================= Agenda ================= -->
+        <TabItem AutomationProperties.Name="Agenda">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{StaticResource NavIcon}" Data="M4,5 H20 V21 H4 Z M4,10 H20 M8,3 V7 M16,3 V7"/>
+                    <TextBlock Text="Agenda" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                </StackPanel>
+            </TabItem.Header>
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top">
+                    <TextBlock Text="Agenda" Style="{StaticResource H1}"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,16" TextWrapping="Wrap"
+                               Text="Cada linha é um horário em que a atividade começa sozinha, no PC e no celular."/>
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom">
+                    <Border x:Name="WarningsBox" Background="{StaticResource AccentSoftBrush}" CornerRadius="6" Padding="12,10" Margin="0,12,0,0" Visibility="Collapsed">
+                        <TextBlock x:Name="WarningsText" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap"/>
+                    </Border>
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="Adicionar horário" Style="{StaticResource SecondaryButton}" Click="AddSlot_Click"/>
+                        <Button Content="Remover selecionado" Style="{StaticResource DangerButton}" Margin="8,0,0,0" Click="RemoveSlot_Click"/>
+                        <Button x:Name="SaveScheduleButton" Content="Salvar agenda" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="SaveSchedule_Click"/>
+                        <TextBlock x:Name="ScheduleStatus" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+                <DataGrid x:Name="ScheduleGrid" AutoGenerateColumns="False" CanUserAddRows="False" AutomationProperties.Name="Agenda semanal">
+                    <DataGrid.Columns>
+                        <DataGridComboBoxColumn x:Name="ActivityColumn" Header="Atividade" Width="*"
+                                                SelectedValueBinding="{Binding ActivityId}" SelectedValuePath="Id" DisplayMemberPath="Name"/>
+                        <DataGridTextColumn Header="Hora" Binding="{Binding Time}" Width="80"/>
+                        <DataGridCheckBoxColumn Header="Dom" Binding="{Binding Sun}" Width="52"/>
+                        <DataGridCheckBoxColumn Header="Seg" Binding="{Binding Mon}" Width="52"/>
+                        <DataGridCheckBoxColumn Header="Ter" Binding="{Binding Tue}" Width="52"/>
+                        <DataGridCheckBoxColumn Header="Qua" Binding="{Binding Wed}" Width="52"/>
+                        <DataGridCheckBoxColumn Header="Qui" Binding="{Binding Thu}" Width="52"/>
+                        <DataGridCheckBoxColumn Header="Sex" Binding="{Binding Fri}" Width="52"/>
+                        <DataGridCheckBoxColumn Header="Sáb" Binding="{Binding Sat}" Width="52"/>
+                        <DataGridCheckBoxColumn Header="Ativo" Binding="{Binding Enabled}" Width="60"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </TabItem>
+
+        <!-- ================= Sempre liberados ================= -->
+        <TabItem AutomationProperties.Name="Sempre liberados">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{StaticResource NavIcon}" Data="M12,3 L20,6 V12 C20,16.5 16.5,19.5 12,21 C7.5,19.5 4,16.5 4,12 V6 Z"/>
+                    <TextBlock Text="Sempre liberados" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                </StackPanel>
+            </TabItem.Header>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Text="Sempre liberados" Style="{StaticResource H1}"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,16" TextWrapping="Wrap"
+                               Text="Valem em qualquer atividade. Só podem ser editados quando nenhuma atividade está travada."/>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <Label Content="Apps do Windows" Style="{StaticResource FieldLabel}" Margin="0"/>
+                            <local:ChipEditor x:Name="AlwaysWinChips" Kind="App"/>
+                            <Label Content="Sites" Style="{StaticResource FieldLabel}"/>
+                            <local:ChipEditor x:Name="AlwaysSiteChips" Kind="Site" InputLabel="Novo site"/>
+                            <Label Content="Apps do Android" Style="{StaticResource FieldLabel}"/>
+                            <local:ChipEditor x:Name="AlwaysAndroidChips" Kind="Text" InputLabel="Novo pacote Android"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
+                                <Button x:Name="SaveAlwaysButton" Content="Salvar" Style="{StaticResource PrimaryButton}" Click="SaveAlways_Click"/>
+                                <TextBlock x:Name="AlwaysStatus" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
+</Window>
