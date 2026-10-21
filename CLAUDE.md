@@ -47,5 +47,8 @@ Instalar como serviço (PowerShell como administrador): `windows/install-service
 
 ## Pendências conhecidas
 
-- Fase 5: abrir a API para a rede com token; hoje só aceita localhost e sem autenticação.
+- O token do celular viaja em HTTP sem criptografia na rede de casa; quem estiver no mesmo Wi-Fi pode capturá-lo. Avaliar TLS na fase 6.
+- Se o serviço do PC sumir de vez, a extensão do Chrome mantém as regras de bloqueio para sempre (ela não sabe se a atividade acabou). Corrigir na fase 6, por exemplo liberando depois do `minEndsAt` mais um prazo.
+- Testes no PC de uso real: uma atividade iniciada fecha toda janela fora da lista. Para testar só a sincronização, renomeie o `Rotina.App.exe` de debug e desative a extensão antes.
+- Processos abertos de dentro de um app empacotado (MSIX), como o Claude desktop, têm caminho real em `AppData\Local\Packages\...\LocalCache`, diferente do que o `Get-Process` mostra. O bloqueio usa o caminho real.
 - Fase 6: restringir as permissões da pasta `%ProgramData%\Rotina` (hoje o usuário consegue editar o banco) e detectar saltos no relógio.

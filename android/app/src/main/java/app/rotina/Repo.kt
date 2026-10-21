@@ -3,8 +3,6 @@ package app.rotina
 import android.content.Context
 import kotlinx.serialization.Serializable
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -21,8 +19,15 @@ data class LocalData(
     // Fixed at first run so changing the phone's time zone cannot shift the schedule.
     val zoneId: String = ZoneId.systemDefault().id,
     val deviceId: String = UUID.randomUUID().toString(),
-    // Dev: `adb reverse tcp:47800 tcp:47800` makes the phone's 127.0.0.1 reach the PC (emulator or USB cable).
-    val pcBaseUrl: String = "http://127.0.0.1:47800/api/v1/",
+    // Pairing (from the PC's QR code). Dev: `adb reverse tcp:47800 tcp:47800` and host 127.0.0.1.
+    val pcBaseUrl: String = "",
+    val token: String = "",
+    // Sync: the PC revision already received, and the sessions changed here that the PC has not taken yet.
+    val lastRev: Long = 0,
+    val outbox: List<String> = emptyList(),
+    val catalogHash: Int = 0,
+    val lastSyncAt: String = "",
+    val lastSyncError: String = "",
 )
 
 /** Single source of truth inside the app process (UI, alarm, boot, accessibility and session service share it). */
@@ -54,10 +59,12 @@ object Repo {
         write(data)
     }
 
+    /** A start or end made on this phone: saved, and queued for the PC. */
     @Synchronized fun apply(r: TickResult) {
         if (r.ended == null && r.started == null) return
-        val ids = setOfNotNull(r.ended?.id, r.started?.id)
-        update { d -> d.copy(sessions = d.sessions.filterNot { it.id in ids } + listOfNotNull(r.ended, r.started)) }
+        val changed = listOfNotNull(r.ended, r.started)
+        val ids = changed.mapTo(HashSet()) { it.id }
+        update { d -> d.copy(sessions = d.sessions.filterNot { it.id in ids } + changed, outbox = (d.outbox + ids).distinct()) }
     }
 
     @Synchronized fun tick(now: Instant = Instant.now()): TickResult {
@@ -70,30 +77,23 @@ object Repo {
 
     @Synchronized fun end() = current()?.let { apply(TickResult(Engine.end(it, Instant.now()), null)) }
 
-    /**
-     * Dev-only copy of activities, schedule and global list from the PC (read only, no pairing yet).
-     * shortcut: no token and no session merge; phase 5 replaces this with the real sync.
-     */
-    fun importFromPc(): String {
-        val base = data.pcBaseUrl.trimEnd('/') + "/"
-        val acts = json.decodeFromString<List<Activity>>(get(base + "activities"))
-        val schedule = json.decodeFromString<List<ScheduleEntry>>(get(base + "schedule"))
-        val always = json.decodeFromString<List<AlwaysAllowed>>(get(base + "always-allowed"))
-        val mode = json.decodeFromString<PcState>(get(base + "state")).mode
-        update { it.copy(activities = acts, schedule = schedule, alwaysAllowed = always, development = mode != "production") }
-        return "${acts.size} atividades e ${schedule.size} horários importados."
+    /** After a push: what the PC took leaves the queue (unless it changed again meanwhile); what it refused is dropped. */
+    @Synchronized fun afterPush(sent: List<Session>, rejected: Set<String>) = update { d ->
+        val byId = d.sessions.associateBy { it.id }
+        val delivered = sent.filter { byId[it.id] == it }.mapTo(HashSet()) { it.id } + rejected
+        d.copy(outbox = d.outbox - delivered, sessions = d.sessions.filterNot { it.id in rejected })
     }
 
-    @Serializable private data class PcState(val mode: String = "development")
-
-    private fun get(url: String): String {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 4000
-        c.readTimeout = 4000
-        try {
-            if (c.responseCode !in 200..299) error("O PC respondeu ${c.responseCode} em $url")
-            return c.inputStream.bufferedReader().readText()
-        } finally { c.disconnect() }
+    /** The PC's changes. Sessions still waiting to be sent keep the local version until the PC has them. */
+    @Synchronized fun applyPull(p: SyncPull) = update { d ->
+        d.copy(
+            activities = mergeById(d.activities, p.activities) { it.id },
+            schedule = mergeById(d.schedule, p.schedule) { it.id },
+            alwaysAllowed = p.alwaysAllowed ?: d.alwaysAllowed,
+            sessions = mergeById(d.sessions, p.sessions.filter { it.id !in d.outbox }) { it.id },
+            development = p.mode != "production",
+            lastRev = p.rev,
+        )
     }
 
     // Write to a temp file and rename, so a crash never leaves half a file.
@@ -102,4 +102,12 @@ object Repo {
         tmp.writeText(json.encodeToString(LocalData.serializer(), d))
         if (!tmp.renameTo(file)) { file.delete(); tmp.renameTo(file) }
     }
+}
+
+/** Replaces items with the same id and adds new ones, keeping the local order. */
+fun <T> mergeById(local: List<T>, incoming: List<T>, id: (T) -> String): List<T> {
+    val merged = LinkedHashMap<String, T>()
+    local.forEach { merged[id(it)] = it }
+    incoming.forEach { merged[id(it)] = it }
+    return merged.values.toList()
 }

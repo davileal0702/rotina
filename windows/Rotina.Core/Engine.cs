@@ -112,6 +112,35 @@ public sealed class Engine(TimeZoneInfo zone, TimeSpan minUnit, string deviceId)
         return Guid.Parse(Convert.ToHexString(hash, 0, 16));
     }
 
+    /// <summary>
+    /// Applies a session the phone created or changed (maybe offline) to the PC's history. The PC is the source of truth:
+    /// nothing ends before its minimum, and of two activities that overlap the later one only stands if the earlier
+    /// one could already end when it began.
+    /// </summary>
+    /// <param name="sameId">The PC's copy of the same session, if any.</param>
+    /// <param name="open">The PC's session in progress, if any.</param>
+    public static MergeResult MergeSession(Session incoming, Session? sameId, Session? open)
+    {
+        if (sameId is not null)
+        {
+            // Known session (a manual start already synced, or a scheduled one both devices made): only an end can be new.
+            if (incoming.EndedAt is not { } end || sameId.EndedAt is not null) return new(true, []);
+            return end >= sameId.MinEndsAt ? new(true, [sameId with { EndedAt = end }]) : new(false, []);
+        }
+        if (incoming.EndedAt is { } e && e < incoming.MinEndsAt) return new(false, []);
+        if (open is null) return new(true, [incoming]);
+        if (incoming.StartedAt <= open.StartedAt)
+        {
+            // Began before the PC's current one: kept as history, closed at the latest when the PC's began.
+            var closed = incoming.EndedAt is { } ie && ie < open.StartedAt ? ie : open.StartedAt;
+            return new(true, [incoming with { EndedAt = closed }]);
+        }
+        // Began after the PC's current one: only valid if that one could already end.
+        return incoming.StartedAt >= open.MinEndsAt
+            ? new(true, [open with { EndedAt = incoming.StartedAt }, incoming])
+            : new(false, []);
+    }
+
     /// <summary>True when a saved row did not really change, so it keeps its UpdatedAt and a queued start survives.</summary>
     public static bool SameSlot(ScheduleEntry a, ScheduleEntry b) =>
         a.ActivityId == b.ActivityId && a.StartTime == b.StartTime && a.Enabled == b.Enabled

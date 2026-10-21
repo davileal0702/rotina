@@ -87,6 +87,18 @@ public sealed record StateDto(RuleState State, Session? Session, int SecondsUnti
 public sealed record ScheduleSaveResult(List<ScheduleEntry> Entries, List<string> Warnings);
 public sealed record StartRequest(Guid ActivityId);
 
+// Phone pairing and sync (phase 5).
+/// <summary>The paired phone. Only a hash of its token is stored.</summary>
+public sealed record Device(string Id, string Name, string TokenHash, DateTimeOffset? LastSeenAt);
+public sealed record PairingCode(string Host, int Port, string Token, string Code);
+public sealed record PairingStatus(bool Paired, DateTimeOffset? LastSeenAt);
+public sealed record CatalogItem(string Identifier, string Label);
+public sealed record SyncPull(long Rev, AppMode Mode, List<Activity> Activities, List<ScheduleEntry> Schedule,
+    List<AlwaysAllowed>? AlwaysAllowed, List<Session> Sessions);
+public sealed record SyncPush(List<Session> Sessions);
+public sealed record SyncPushResult(List<Guid> Accepted, List<Guid> Rejected);
+public sealed record MergeResult(bool Accepted, List<Session> Writes);
+
 public sealed record Settings
 {
     public AppMode Mode { get; init; } = AppMode.Development;

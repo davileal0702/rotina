@@ -175,6 +175,35 @@ public class EngineTests
     }
 
     [Fact]
+    public void Phone_session_merges_by_the_rules()
+    {
+        var pc = Manual(gym, Mon8); // PC: locked until 09:00
+        // Phone started something while the PC was locked: rejected.
+        Assert.False(Engine.MergeSession(Manual(study, Mon8.AddMinutes(10)), null, pc).Accepted);
+        // Phone started after the PC's minimum: accepted, and the PC's one ends right then.
+        var later = Manual(study, Mon8.AddMinutes(61));
+        var r = Engine.MergeSession(later, null, pc);
+        Assert.True(r.Accepted);
+        Assert.Equal(Mon8.AddMinutes(61), r.Writes[0].EndedAt);
+        Assert.Equal(later.Id, r.Writes[1].Id);
+        // Phone started before the PC's one: kept as history, closed when the PC's began.
+        var earlier = Manual(study, Mon8.AddMinutes(-40));
+        Assert.Equal(Mon8, Engine.MergeSession(earlier, null, pc).Writes.Single().EndedAt);
+        // Nothing open on the PC: taken as is.
+        Assert.Equal(later, Engine.MergeSession(later, null, null).Writes.Single());
+    }
+
+    [Fact]
+    public void Phone_end_counts_only_after_the_minimum()
+    {
+        var s = Manual(study, Mon8);
+        Assert.False(Engine.MergeSession(s with { EndedAt = Mon8.AddMinutes(10) }, s, s).Accepted);
+        Assert.Equal(Mon8.AddMinutes(31), Engine.MergeSession(s with { EndedAt = Mon8.AddMinutes(31) }, s, s).Writes.Single().EndedAt);
+        // Already ended on the PC, or nothing new: no writes.
+        Assert.Empty(Engine.MergeSession(s, s, s).Writes);
+    }
+
+    [Fact]
     public void Unchanged_schedule_row_is_the_same_slot()
     {
         var e = Entry(study, 8) with { DaysOfWeek = [DayOfWeek.Monday, DayOfWeek.Friday] };

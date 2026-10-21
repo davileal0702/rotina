@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     Guid? editingId;
     StateDto? state;
     bool online, refreshing, busy;
+    int ticks;
     List<ScheduleEntry> schedule = [];
     DateTime todayShown;
 
@@ -165,6 +166,7 @@ public partial class MainWindow : Window
             DevNote.Visibility = s.Mode == AppMode.Development ? Visibility.Visible : Visibility.Collapsed;
             if (DateTime.Today != todayShown) ShowToday(); // app left open past midnight
             UpdateRunningLock();
+            if (++ticks % 5 == 1) await RefreshPairing();
         }
         finally { refreshing = false; }
     }
@@ -179,8 +181,45 @@ public partial class MainWindow : Window
         StateAccent.Background = color is null ? (Brush)FindResource("LineBrush") : ColorBrush(color);
     }
 
+    // ---- Phone ----
+
+    async Task RefreshPairing()
+    {
+        var (ok, p) = await Send<PairingStatus>(HttpMethod.Get, "pairing/status");
+        if (!ok || p is null) return;
+        PairStatus.Text = p.Paired ? "Celular pareado" : "Nenhum celular pareado";
+        PairDetail.Text = !p.Paired ? "Gere um código e leia no celular, em Configuração."
+            : p.LastSeenAt is { } seen ? $"Último contato: {seen.ToLocalTime():dd/MM HH:mm}"
+            : "Ainda sem contato. Abra o Rotina no celular, no mesmo Wi-Fi.";
+    }
+
+    async void Pair_Click(object sender, RoutedEventArgs e)
+    {
+        var (ok, code) = await Busy(PairButton, () => Send<PairingCode>(HttpMethod.Post, "pairing"));
+        if (!ok || code is null) return;
+        var png = new QRCoder.PngByteQRCode(new QRCoder.QRCodeGenerator().CreateQrCode(code.Code, QRCoder.QRCodeGenerator.ECCLevel.M)).GetGraphic(10);
+        var image = new System.Windows.Media.Imaging.BitmapImage();
+        image.BeginInit();
+        image.StreamSource = new System.IO.MemoryStream(png);
+        image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+        image.EndInit();
+        PairQr.Source = image;
+        PairCode.Text = code.Code;
+        PairPanel.Visibility = Visibility.Visible;
+        await RefreshPairing();
+    }
+
+    async Task<List<WinApp>> LoadAndroidCatalog()
+    {
+        var items = (await Send<List<CatalogItem>>(HttpMethod.Get, "catalog/android")).Value ?? [];
+        ChipEditor.AndroidLabels = items.GroupBy(i => i.Identifier).ToDictionary(g => g.Key, g => g.First().Label);
+        return [.. items.OrderBy(i => i.Label, StringComparer.CurrentCultureIgnoreCase).Select(i => new WinApp(i.Label, i.Identifier, null))];
+    }
+
     async Task ReloadAll()
     {
+        ChipEditor.AndroidCatalog = LoadAndroidCatalog;
+        await LoadAndroidCatalog(); // fills the labels the Android chips show
         activities = (await Send<List<Activity>>(HttpMethod.Get, "activities")).Value ?? [];
         ActivityList.ItemsSource = activities;
         StartList.ItemsSource = activities;

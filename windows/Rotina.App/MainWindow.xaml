@@ -157,8 +157,8 @@
 
                             <Label Content="Apps do Android liberados" Style="{StaticResource FieldLabel}"/>
                             <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,6"
-                                       Text="Por enquanto digite o pacote (ex.: com.spotify.music). A lista de apps do celular chega com a sincronização."/>
-                            <local:ChipEditor x:Name="AndroidChips" Kind="Text" InputLabel="Novo pacote Android"/>
+                                       Text="Escolha na lista enviada pelo celular ou digite o pacote (ex.: com.spotify.music)."/>
+                            <local:ChipEditor x:Name="AndroidChips" Kind="AndroidApp" InputLabel="Novo pacote Android"/>
 
                             <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
                                 <Button x:Name="SaveActivityButton" Content="Salvar" Style="{StaticResource PrimaryButton}" Click="SaveActivity_Click"/>
@@ -234,10 +234,44 @@
                             <Label Content="Sites" Style="{StaticResource FieldLabel}"/>
                             <local:ChipEditor x:Name="AlwaysSiteChips" Kind="Site" InputLabel="Novo site"/>
                             <Label Content="Apps do Android" Style="{StaticResource FieldLabel}"/>
-                            <local:ChipEditor x:Name="AlwaysAndroidChips" Kind="Text" InputLabel="Novo pacote Android"/>
+                            <local:ChipEditor x:Name="AlwaysAndroidChips" Kind="AndroidApp" InputLabel="Novo pacote Android"/>
                             <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
                                 <Button x:Name="SaveAlwaysButton" Content="Salvar" Style="{StaticResource PrimaryButton}" Click="SaveAlways_Click"/>
                                 <TextBlock x:Name="AlwaysStatus" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- ================= Celular ================= -->
+        <TabItem AutomationProperties.Name="Celular">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{StaticResource NavIcon}" Data="M7,2 H17 V22 H7 Z M11,18 H13"/>
+                    <TextBlock Text="Celular" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                </StackPanel>
+            </TabItem.Header>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Text="Celular" Style="{StaticResource H1}"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,16" TextWrapping="Wrap"
+                               Text="O celular copia as atividades e a agenda do PC e manda o que fizer fora de casa. PC e celular precisam estar no mesmo Wi-Fi para sincronizar."/>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock x:Name="PairStatus" FontSize="16" FontWeight="SemiBold" Text="Verificando..."/>
+                            <TextBlock x:Name="PairDetail" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            <Button x:Name="PairButton" Content="Gerar código de pareamento" Style="{StaticResource PrimaryButton}"
+                                    HorizontalAlignment="Left" Margin="0,18,0,0" Click="Pair_Click"/>
+                            <StackPanel x:Name="PairPanel" Visibility="Collapsed" Margin="0,20,0,0">
+                                <TextBlock Text="No celular: Configuração, Parear com o PC, Ler QR code." TextWrapping="Wrap"/>
+                                <Image x:Name="PairQr" Width="240" Height="240" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                       RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="QR code de pareamento"/>
+                                <Label Content="Ou digite este código no _celular" Target="{Binding ElementName=PairCode}" Style="{StaticResource FieldLabel}"/>
+                                <TextBox x:Name="PairCode" IsReadOnly="True" TextWrapping="Wrap"/>
+                                <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Text="Gerar um código novo desfaz o pareamento anterior."/>
                             </StackPanel>
                         </StackPanel>
                     </Border>

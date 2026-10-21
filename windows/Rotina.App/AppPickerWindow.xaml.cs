@@ -18,14 +18,23 @@ public partial class AppPickerWindow : Window
     List<PickRow> rows = [];
     public List<WinApp> Picked { get; } = [];
 
-    public AppPickerWindow(IEnumerable<string> alreadyAllowed)
+    readonly bool android;
+
+    /// <param name="source">Windows apps (Start Menu + open) or the phone's app list; Path holds the .exe path or the package.</param>
+    public AppPickerWindow(IEnumerable<string> alreadyAllowed, Task<List<WinApp>> source, bool android = false)
     {
         InitializeComponent();
+        this.android = android;
         already = new(alreadyAllowed, StringComparer.OrdinalIgnoreCase);
+        if (android)
+        {
+            SubtitleText.Text = "Marque os apps do celular que ficam liberados. A lista vem do próprio celular.";
+            BrowseButton.Visibility = Visibility.Collapsed;
+        }
         Loaded += async (_, _) =>
         {
             SearchBox.Focus();
-            rows = [.. (await AppCatalog.All()).Where(a => !already.Contains(a.Path)).Select(a => new PickRow(a))];
+            rows = [.. (await source).Where(a => !already.Contains(a.Path)).Select(a => new PickRow(a))];
             AppList.ItemsSource = rows;
             CollectionViewSource.GetDefaultView(rows).Filter = o => Matches((PickRow)o);
             UpdateEmpty();
@@ -51,7 +60,9 @@ public partial class AppPickerWindow : Window
     {
         var any = rows.Any(Matches);
         EmptyText.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
-        EmptyText.Text = rows.Count == 0 && SearchBox.Text.Length == 0
+        EmptyText.Text = android && rows.Count == 0 && SearchBox.Text.Length == 0
+            ? "Nenhum app do celular disponível. Pareie o celular na aba Celular e abra o Rotina nele para ele mandar a lista."
+            : rows.Count == 0 && SearchBox.Text.Length == 0
             ? "Todos os apps encontrados já estão liberados. Use \"Procurar .exe...\" para escolher outro arquivo."
             : $"Nenhum app com \"{SearchBox.Text.Trim()}\". Tente outra parte do nome, ou use \"Procurar .exe...\" para escolher o arquivo.";
     }

@@ -17,10 +17,14 @@ class BlockerService : AccessibilityService() {
     private var exempt: Set<String> = emptySet()
     private var exemptAt = 0L
 
+    private var polls = 0
+
     // The app already open when an activity starts sends no event, so check the front app every 2 s too.
+    // This service lives as long as blocking is on, so it also drives the sync with the PC (every ~45 s).
     private val poll = object : Runnable {
         override fun run() {
             rootInActiveWindow?.packageName?.toString()?.let(::check)
+            if (polls++ % 22 == 0) Sync.soon(this@BlockerService)
             handler.postDelayed(this, 2000)
         }
     }

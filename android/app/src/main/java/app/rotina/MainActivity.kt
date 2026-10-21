@@ -65,9 +65,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Scheduler.sync(this) // in the foreground the session notification is always allowed to start
+        Sync.soon(this)
     }
 }
 
@@ -155,6 +156,7 @@ private fun HomeScreen(now: Instant) {
                     Button(onClick = {
                         runCatching { Repo.end() }.onFailure { error = it.message }
                         Scheduler.sync(context)
+                        Sync.soon(context)
                     }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Encerrar atividade") }
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -185,13 +187,13 @@ private fun StartScreen(now: Instant, started: () -> Unit) {
     val acts = Repo.data.activities.filterNot { it.deleted }.sortedBy { it.name }
     Title("Iniciar atividade")
     if (locked) Text("Disponível quando a atividade atual atingir o tempo mínimo.", color = Muted, modifier = Modifier.padding(bottom = 12.dp))
-    if (acts.isEmpty()) Text("Nenhuma atividade ainda. Importe do PC em Configuração.", color = Muted)
+    if (acts.isEmpty()) Text("Nenhuma atividade ainda. Pareie com o PC em Configuração.", color = Muted)
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         items(acts, key = { it.id }) { a ->
             Card(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
                     .clickable(enabled = !locked, onClickLabel = "Iniciar ${a.name}") {
-                        Repo.startManual(a.id); Scheduler.sync(context); started()
+                        Repo.startManual(a.id); Scheduler.sync(context); Sync.soon(context); started()
                     },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
@@ -210,26 +212,37 @@ private fun StartScreen(now: Instant, started: () -> Unit) {
 @Composable
 private fun SetupScreen(now: Instant) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var url by remember { mutableStateOf(Repo.data.pcBaseUrl) }
+    var code by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     now.let { } // reading `now` re-checks the permission states every second
     Column(Modifier.verticalScroll(rememberScrollState())) {
         Title("Configuração")
-        Text("Computador", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
-        Text("Por enquanto o celular só copia as atividades e a agenda do PC. O pareamento por QR code chega na sincronização.",
-            color = Muted, fontSize = 14.sp, modifier = Modifier.padding(vertical = 6.dp))
-        OutlinedTextField(url, { url = it }, label = { Text("Endereço do serviço no PC") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
+        Text("Parear com o PC", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+        val d = Repo.data
+        val paired = d.token.isNotEmpty()
+        Text(
+            when {
+                !paired -> "Não pareado. No PC, abra o Rotina, aba Celular, e gere um código."
+                d.lastSyncError.isNotEmpty() -> "Pareado com ${d.pcBaseUrl.substringAfter("//").substringBefore("/")}. Última tentativa falhou: ${d.lastSyncError}"
+                d.lastSyncAt.isNotEmpty() -> "Pareado com ${d.pcBaseUrl.substringAfter("//").substringBefore("/")}. Sincronizado às ${ts(d.lastSyncAt).atZone(ZoneId.of(d.zoneId)).toLocalTime().withNano(0)}."
+                else -> "Pareado. Aguardando a primeira sincronização."
+            },
+            color = if (paired && d.lastSyncError.isEmpty()) Muted else Accent, fontSize = 14.sp, modifier = Modifier.padding(vertical = 6.dp),
+        )
         Button(onClick = {
-            Repo.update { it.copy(pcBaseUrl = url.trim()) }
-            status = "Importando..."
-            scope.launch {
-                status = withContext(Dispatchers.IO) { runCatching { Repo.importFromPc() }.getOrElse { "Não foi possível falar com o PC: ${it.message}" } }
-                Scheduler.sync(context)
-            }
-        }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Importar do PC") }
+            GmsBarcodeScanning.getClient(context, GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build())
+                .startScan()
+                .addOnSuccessListener { status = Sync.pair(context, it.rawValue.orEmpty()) }
+                .addOnFailureListener { status = "Não foi possível abrir o leitor de QR code. Digite o código abaixo." }
+        }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Ler QR code") }
+        OutlinedTextField(code, { code = it }, label = { Text("Ou cole o código de pareamento") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        Row(Modifier.padding(top = 8.dp)) {
+            OutlinedButton(onClick = { status = Sync.pair(context, code) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Parear") }
+            Spacer(Modifier.width(8.dp))
+            if (paired) OutlinedButton(onClick = { Sync.soon(context); status = "Sincronizando..." }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Sincronizar agora") }
+        }
         if (status.isNotEmpty()) Text(status, color = Muted, modifier = Modifier.padding(top = 6.dp))
 
         Text("Permissões", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 28.dp, bottom = 4.dp).semantics { heading() })

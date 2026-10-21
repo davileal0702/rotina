@@ -308,6 +308,14 @@ Estes ajustes valem por cima do texto acima quando houver diferença.
 - O app Configurações também se declara "tela inicial" (FallbackHome) e por isso não entra na lista de launchers isentos de bloqueio.
 - Em desenvolvimento o celular fala com o PC por `adb reverse tcp:47800 tcp:47800` (emulador ou cabo USB), no endereço `127.0.0.1`.
 
+**Sincronização**
+
+- O serviço escuta em todas as interfaces na porta 47800. Pedidos do próprio PC não usam token, mas o Host precisa ser `localhost` ou `127.0.0.1` (proteção contra DNS rebinding). Pedidos da rede exigem `Authorization: Bearer <token>`; `/pairing` nunca é alcançável pela rede.
+- Um celular por vez. Gerar um código novo troca o token, e o antigo deixa de valer. O PC guarda só o hash SHA-256 do token.
+- `GET /sync?since=<rev>` devolve atividades, agenda, sempre liberados e sessões com revisão maior. `POST /sync` recebe as sessões que o celular criou ou encerrou e aplica cada uma pela regra `Engine.MergeSession`: nada encerra antes do mínimo e, se duas atividades se sobrepõem, a mais nova só vale se a anterior já podia ser encerrada. O PC vence os empates.
+- O celular sincroniza a cada ~45 s (pelo serviço de acessibilidade), quando a rede volta e logo depois de iniciar ou encerrar. As mudanças feitas offline ficam numa fila até o PC aceitar.
+- O celular envia ao PC a lista de apps com ícone, para escolher os apps Android liberados numa lista com busca.
+
 ## Como entregar ao Claude Code
 
 Exporte este documento como Markdown, salve como `docs/SPEC.md` numa pasta nova de projeto e peça ao Claude Code para trabalhar uma fase por vez.

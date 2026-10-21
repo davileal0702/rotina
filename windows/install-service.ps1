@@ -15,6 +15,7 @@ Get-Process Rotina.App -ErrorAction SilentlyContinue | Stop-Process -Force # the
 if ($Uninstall) {
     if ($svc) { sc.exe delete $name | Out-Null }
     Remove-ItemProperty $runKey -Name $name -ErrorAction SilentlyContinue
+    Remove-NetFirewallRule -DisplayName "Rotina (celular)" -ErrorAction SilentlyContinue
     Write-Host "Serviço removido. Os dados continuam em $env:ProgramData\Rotina."
     return
 }
@@ -24,6 +25,10 @@ if ($LASTEXITCODE -ne 0) { throw "Falha no dotnet publish do serviço." }
 dotnet publish (Join-Path $PSScriptRoot "Rotina.App") -c Release -o $appOut
 if ($LASTEXITCODE -ne 0) { throw "Falha no dotnet publish do app." }
 Set-ItemProperty $runKey -Name $name -Value "`"$appOut\Rotina.App.exe`" --background"
+# The phone syncs over the home network: open the port only on private networks, never on public Wi-Fi.
+Remove-NetFirewallRule -DisplayName "Rotina (celular)" -ErrorAction SilentlyContinue
+New-NetFirewallRule -DisplayName "Rotina (celular)" -Direction Inbound -Protocol TCP -LocalPort 47800 `
+    -Profile Private -Action Allow -Program "$out\Rotina.Service.exe" | Out-Null
 
 if (-not $svc) {
     New-Service -Name $name -DisplayName "Rotina" -StartupType Automatic `

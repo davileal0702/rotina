@@ -15,6 +15,7 @@ class RotinaApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Repo.init(this)
+        Sync.watchNetwork(this)
     }
 }
 

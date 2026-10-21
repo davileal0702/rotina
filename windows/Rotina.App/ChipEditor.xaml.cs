@@ -8,7 +8,7 @@ using Rotina.Core;
 
 namespace Rotina.App;
 
-public enum ChipKind { Text, Site, App }
+public enum ChipKind { Text, Site, App, AndroidApp }
 
 public sealed record Chip(string Value, string Label, ImageSource? Icon);
 
@@ -17,6 +17,10 @@ public partial class ChipEditor : UserControl
 {
     public ObservableCollection<Chip> Items { get; } = [];
     public ChipKind Kind { get; set; }
+
+    // Android apps come from the list the phone sends to the PC (set by MainWindow, which talks to the service).
+    public static Func<Task<List<WinApp>>> AndroidCatalog { get; set; } = () => Task.FromResult(new List<WinApp>());
+    public static Dictionary<string, string> AndroidLabels { get; set; } = [];
     public string InputLabel { get; set; } = "Novo item";
 
     public ChipEditor()
@@ -26,7 +30,7 @@ public partial class ChipEditor : UserControl
         Items.CollectionChanged += (_, _) => EmptyText.Visibility = Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         Loaded += (_, _) =>
         {
-            AppButton.Visibility = Kind == ChipKind.App ? Visibility.Visible : Visibility.Collapsed;
+            AppButton.Visibility = Kind is ChipKind.App or ChipKind.AndroidApp ? Visibility.Visible : Visibility.Collapsed;
             InputRow.Visibility = Kind == ChipKind.App ? Visibility.Collapsed : Visibility.Visible;
             AutomationProperties.SetName(InputBox, InputLabel);
         };
@@ -39,6 +43,7 @@ public partial class ChipEditor : UserControl
         Items.Clear();
         foreach (var v in values)
         {
+            if (Kind == ChipKind.AndroidApp) { Items.Add(new(v, AndroidLabels.GetValueOrDefault(v, v), null)); continue; }
             if (Kind != ChipKind.App) { Items.Add(new(v, v, null)); continue; }
             var app = AppCatalog.Describe(v);
             Items.Add(new(v, app.Name, app.Icon));
@@ -53,7 +58,8 @@ public partial class ChipEditor : UserControl
 
     void PickApps_Click(object sender, RoutedEventArgs e)
     {
-        var picker = new AppPickerWindow(Values) { Owner = Window.GetWindow(this) };
+        var android = Kind == ChipKind.AndroidApp;
+        var picker = new AppPickerWindow(Values, android ? AndroidCatalog() : AppCatalog.All(), android) { Owner = Window.GetWindow(this) };
         if (picker.ShowDialog() != true) return;
         foreach (var app in picker.Picked)
             if (!Values.Contains(app.Path, StringComparer.OrdinalIgnoreCase)) Items.Add(new(app.Path, app.Name, app.Icon));

@@ -8,14 +8,14 @@
     <DockPanel Margin="20">
         <StackPanel DockPanel.Dock="Top">
             <TextBlock Text="Adicionar apps" Style="{StaticResource H2}"/>
-            <TextBlock Text="Marque os apps que ficam liberados. A lista vem do Menu Iniciar e dos apps abertos agora."
+            <TextBlock x:Name="SubtitleText" Text="Marque os apps que ficam liberados. A lista vem do Menu Iniciar e dos apps abertos agora."
                        Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,12"/>
             <Label Content="_Buscar" Target="{Binding ElementName=SearchBox}" Style="{StaticResource FieldLabel}"/>
             <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged"/>
         </StackPanel>
 
         <DockPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
-            <Button DockPanel.Dock="Left" Content="Procurar .exe..." Style="{StaticResource SecondaryButton}" Click="Browse_Click"/>
+            <Button x:Name="BrowseButton" DockPanel.Dock="Left" Content="Procurar .exe..." Style="{StaticResource SecondaryButton}" Click="Browse_Click"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Cancelar" Style="{StaticResource SecondaryButton}" IsCancel="True"/>
                 <Button x:Name="AddButton" Content="Adicionar" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" IsDefault="True" Click="Add_Click"/>

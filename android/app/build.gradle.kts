@@ -25,5 +25,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
+    // Reads the pairing QR code through Google Play services: no camera permission, no camera code here.
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     testImplementation("junit:junit:4.13.2")
 }
