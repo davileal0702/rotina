@@ -300,6 +300,14 @@ Estes ajustes valem por cima do texto acima quando houver diferença.
 - O serviço só fecha o Chrome depois de uns 60 s sem heartbeat e só se o Chrome estiver rodando, porque o MV3 adormece a extensão.
 - As regras de bloqueio valem só para `main_frame` e `sub_frame`, para que sites liberados carreguem imagens e scripts de outros domínios.
 
+**App Android**
+
+- A cópia local fica num arquivo JSON com o mesmo formato da API do PC, não no Room: o volume é pequeno e a sincronização só precisa salvar o que a API devolve.
+- O motor de regras é uma cópia fiel do C# (`Engine.kt`), e um teste com o mesmo vetor nos dois lados garante o mesmo id de sessão agendada.
+- O serviço em primeiro plano só é iniciado pelo alarme exato, pelo boot ou com o app aberto, porque o Android 12+ proíbe iniciá-lo em segundo plano. O bloqueio pela acessibilidade funciona mesmo sem ele.
+- O app Configurações também se declara "tela inicial" (FallbackHome) e por isso não entra na lista de launchers isentos de bloqueio.
+- Em desenvolvimento o celular fala com o PC por `adb reverse tcp:47800 tcp:47800` (emulador ou cabo USB), no endereço `127.0.0.1`.
+
 ## Como entregar ao Claude Code
 
 Exporte este documento como Markdown, salve como `docs/SPEC.md` numa pasta nova de projeto e peça ao Claude Code para trabalhar uma fase por vez.

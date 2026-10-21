@@ -37,6 +37,14 @@ Instalar como serviço (PowerShell como administrador): `windows/install-service
 - `background.js` lê `GET /api/v1/state` e aplica regras dinâmicas de `declarativeNetRequest` (só `main_frame` e `sub_frame`). As regras puras ficam em `rules.js`, testadas com `node --test chrome-extension/rules.test.mjs`.
 - Para testar: `chrome://extensions`, ative o modo desenvolvedor, "Carregar sem compactação" e escolha a pasta `chrome-extension`.
 
+## App Android (`android/`, Kotlin + Compose)
+
+- `Engine.kt` é cópia fiel de `windows/Rotina.Core/Engine.cs`: qualquer mudança de regra vai nos dois. O teste com o vetor do id de sessão precisa passar nos dois lados.
+- Dados locais: `files/rotina.json` (`Repo`), mesmo formato da API. Agenda por `AlarmManager` exato (`Scheduler`), bloqueio por `BlockerService` (acessibilidade), notificação fixa por `SessionService` durante a atividade.
+- Nunca inicie `SessionService` a partir de `Application.onCreate`: o Android derruba o app (`ForegroundServiceStartNotAllowedException`).
+- Build e testes (JAVA_HOME = JBR do Android Studio): `android\gradlew.bat :app:testDebugUnitTest :app:assembleDebug`.
+- Emulador: `adb reverse tcp:47800 tcp:47800`, depois "Importar do PC" na aba Configuração. `am force-stop` desliga a acessibilidade do app; ligue de novo com `adb shell settings put secure enabled_accessibility_services app.rotina/app.rotina.BlockerService`.
+
 ## Pendências conhecidas
 
 - Fase 5: abrir a API para a rede com token; hoje só aceita localhost e sem autenticação.

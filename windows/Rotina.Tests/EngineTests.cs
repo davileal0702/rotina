@@ -65,6 +65,14 @@ public class EngineTests
     }
 
     [Fact]
+    public void Scheduled_session_id_matches_the_android_app()
+    {
+        // Same vector as android EngineTest: both devices must create the same session id.
+        var e = Entry(study, 8) with { Id = Guid.Parse("11111111-1111-1111-1111-111111111111") };
+        Assert.Equal(Guid.Parse("13f2ffe2-e261-482c-2e69-254023c1016b"), engine.ScheduledSessionId(e, Mon8));
+    }
+
+    [Fact]
     public void Scheduled_start_does_not_repeat_once_the_session_exists()
     {
         var e = Entry(study, 8);

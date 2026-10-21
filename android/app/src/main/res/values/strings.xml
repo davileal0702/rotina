@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_description">O Rotina usa a acessibilidade só para saber qual app está aberto durante uma atividade e mostrar a tela de bloqueio quando ele não estiver liberado. Nenhum conteúdo da tela é lido ou enviado.</string>
+</resources>
