@@ -1,18 +1,26 @@
-import { buildRules, shouldRedirect, BLOCK_RULE_ID, FIRST_ALLOW_ID } from "./rules.js";
+import { buildRules, shouldRedirect, serviceGoneTooLong, BLOCK_RULE_ID, FIRST_ALLOW_ID } from "./rules.js";
 
-const STATE_URL = "http://127.0.0.1:47800/api/v1/state";
+const API = "http://127.0.0.1:47800/api/v1";
 const BLOCK_PAGE = "/blocked.html";
 
 /** Reads the activity from the local Rotina service and applies (or clears) the site rules. */
 async function refresh() {
   let state;
   try {
-    const res = await fetch(STATE_URL, { cache: "no-store" });
+    const res = await fetch(`${API}/state`, { cache: "no-store" });
     if (!res.ok) return;
     state = await res.json();
   } catch {
-    return; // service unreachable: keep the rules we have; the service is the only source of truth
+    // Service unreachable: keep the rules (stopping the service must not lift the block), but not forever,
+    // or a broken or removed service would block sites for good.
+    const { lastOk = Date.now() } = await chrome.storage.local.get("lastOk");
+    if (serviceGoneTooLong(lastOk, Date.now()))
+      await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [BLOCK_RULE_ID, FIRST_ALLOW_ID] });
+    return;
   }
+  await chrome.storage.local.set({ lastOk: Date.now() });
+  // "I am alive": if this stops during an activity (extension disabled), the desktop app closes Chrome.
+  fetch(`${API}/heartbeat/extension`, { method: "POST" }).catch(() => {});
   const active = state.state !== "free" && state.allowed && state.session;
   const sites = active ? state.allowed.web : [];
   await chrome.declarativeNetRequest.updateDynamicRules({

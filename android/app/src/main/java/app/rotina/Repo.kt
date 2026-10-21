@@ -1,6 +1,8 @@
 package app.rotina
 
 import android.content.Context
+import android.os.SystemClock
+import android.provider.Settings
 import kotlinx.serialization.Serializable
 import java.io.File
 import java.time.Duration
@@ -28,6 +30,10 @@ data class LocalData(
     val catalogHash: Int = 0,
     val lastSyncAt: String = "",
     val lastSyncError: String = "",
+    // Hash of the PC's recovery key, so the key also works here without a connection.
+    val recoveryKeyHash: String? = null,
+    // Last trusted time, to notice the clock being pushed forward during an activity (see Clock.kt).
+    val clock: ClockAnchor? = null,
 )
 
 /** Single source of truth inside the app process (UI, alarm, boot, accessibility and session service share it). */
@@ -36,8 +42,11 @@ object Repo {
     @Volatile var data = LocalData()
         private set
 
+    private lateinit var app: Context
+
     @Synchronized fun init(context: Context) {
         if (::file.isInitialized) return
+        app = context.applicationContext
         file = File(context.filesDir, "rotina.json")
         data = if (file.exists()) json.decodeFromString(file.readText()) else LocalData().also(::write)
     }
@@ -47,7 +56,23 @@ object Repo {
 
     fun current(): Session? = data.sessions.lastOrNull { it.endedAt == null }
     fun activities(): Map<String, Activity> = data.activities.associateBy { it.id }
-    fun state(now: Instant = Instant.now()) = Engine.stateOf(current(), now)
+    fun state(now: Instant = now()) = Engine.stateOf(current(), now)
+
+    /** The time the rules use: the wall clock, unless it was pushed forward during an activity. */
+    @Synchronized fun now(): Instant {
+        val wall = System.currentTimeMillis()
+        val elapsed = SystemClock.elapsedRealtime()
+        val boot = Settings.Global.getInt(app.contentResolver, Settings.Global.BOOT_COUNT, 0)
+        val anchor = data.clock
+        val trusted = trustedMillis(wall, elapsed, boot, anchor)
+        val free = Engine.stateOf(current(), Instant.ofEpochMilli(trusted)) == RuleState.FREE
+        // New anchor after a reboot, or while free (then a clock fixed by the network simply counts).
+        if (anchor == null || anchor.boot != boot || (free && trusted != wall)) {
+            update { it.copy(clock = ClockAnchor(boot, wall, elapsed)) }
+            return Instant.ofEpochMilli(wall)
+        }
+        return Instant.ofEpochMilli(trusted)
+    }
 
     /** Packages allowed right now: the running activity's own list plus the global list. */
     fun allowedPackages(): Set<String> =
@@ -67,15 +92,24 @@ object Repo {
         update { d -> d.copy(sessions = d.sessions.filterNot { it.id in ids } + changed, outbox = (d.outbox + ids).distinct()) }
     }
 
-    @Synchronized fun tick(now: Instant = Instant.now()): TickResult {
+    @Synchronized fun tick(now: Instant = now()): TickResult {
         val ids = data.sessions.mapTo(HashSet()) { it.id }
         return engine.tick(current(), data.schedule, activities(), { it in ids }, now).also(::apply)
     }
 
     @Synchronized fun startManual(activityId: String) =
-        apply(engine.startManual(current(), activities().getValue(activityId), Instant.now()))
+        apply(engine.startManual(current(), activities().getValue(activityId), now()))
 
-    @Synchronized fun end() = current()?.let { apply(TickResult(Engine.end(it, Instant.now()), null)) }
+    @Synchronized fun end() = current()?.let { apply(TickResult(Engine.end(it, now()), null)) }
+
+    /** Recovery key: ends the running activity now, even before its minimum; the PC takes it on the next sync. */
+    @Synchronized fun recover(key: String): String {
+        if (!Recovery.matches(key, data.recoveryKeyHash))
+            return if (data.recoveryKeyHash == null) "O celular ainda não recebeu a chave. Sincronize com o PC." else "Chave de recuperação incorreta."
+        val cur = current() ?: return "Nenhuma atividade em andamento."
+        apply(TickResult(Engine.recover(cur, now()), null))
+        return "Atividade encerrada. A agenda volta a valer na próxima atividade."
+    }
 
     /** After a push: what the PC took leaves the queue (unless it changed again meanwhile); what it refused is dropped. */
     @Synchronized fun afterPush(sent: List<Session>, rejected: Set<String>) = update { d ->
@@ -93,6 +127,9 @@ object Repo {
             sessions = mergeById(d.sessions, p.sessions.filter { it.id !in d.outbox }) { it.id },
             development = p.mode != "production",
             lastRev = p.rev,
+            recoveryKeyHash = p.recoveryKeyHash ?: d.recoveryKeyHash,
+            // Follow the PC's zone (if valid), so both devices start the same activity at the same moment.
+            zoneId = p.timeZone?.takeIf { runCatching { ZoneId.of(it) }.isSuccess } ?: d.zoneId,
         )
     }
 

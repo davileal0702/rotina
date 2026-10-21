@@ -193,6 +193,36 @@ public class EngineTests
         Assert.Equal(later, Engine.MergeSession(later, null, null).Writes.Single());
     }
 
+    [Theory]
+    [InlineData(null, true)]   // never heard from the extension
+    [InlineData(5, false)]
+    [InlineData(60, false)]
+    [InlineData(61, true)]
+    public void Chrome_closes_only_when_the_extension_went_quiet(int? seconds, bool missing) =>
+        Assert.Equal(missing, Blocking.ExtensionMissing(seconds));
+
+    [Fact]
+    public void Recovery_key_is_checked_by_its_normalized_hash()
+    {
+        // Same vector as android RecoveryTest: both devices must accept the same key.
+        Assert.Equal("DA4E7EA9782C8CB109255854F713C0F231925C812491D35BC39200CFA5C39D0D", Recovery.Hash("abcde-fghjk lmnpq-rstuv"));
+        var key = Recovery.NewKey();
+        Assert.Matches("^[A-HJ-NP-Z2-9]{5}(-[A-HJ-NP-Z2-9]{5}){3}$", key);
+        Assert.True(Recovery.Matches(key.ToLowerInvariant().Replace("-", " "), Recovery.Hash(key)));
+        Assert.False(Recovery.Matches("AAAAA-AAAAA-AAAAA-AAAAA", Recovery.Hash(key)));
+        Assert.False(Recovery.Matches(key, null));
+    }
+
+    [Fact]
+    public void Recovery_ends_before_the_minimum_and_the_pc_accepts_it()
+    {
+        var s = Manual(study, Mon8);
+        var recovered = Engine.Recover(s, Mon8.AddMinutes(5));
+        Assert.Equal(RuleState.Free, Engine.StateOf(recovered, Mon8.AddMinutes(5)));
+        Assert.True(Engine.MergeSession(recovered, s, s).Accepted);
+        Assert.Throws<RuleException>(() => Engine.Recover(recovered, Mon8.AddMinutes(6)));
+    }
+
     [Fact]
     public void Phone_end_counts_only_after_the_minimum()
     {

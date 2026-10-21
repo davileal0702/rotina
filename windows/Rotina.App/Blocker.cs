@@ -18,15 +18,19 @@ public static class Blocker
     static readonly string WindowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows) + Path.DirectorySeparatorChar;
     static readonly string Self = Environment.ProcessPath ?? "";
 
-    public static List<BlockedApp> Enforce(IReadOnlyCollection<string> allowed)
+    /// <param name="closeChrome">The Chrome extension is missing: Chrome is closed too, even if allowed.</param>
+    public static List<BlockedApp> Enforce(IReadOnlyCollection<string> allowed, bool closeChrome = false)
     {
         var result = new List<BlockedApp>();
         foreach (var (pid, path) in WindowOwners())
         {
-            if (!Blocking.ShouldBlock(path, allowed, WindowsDir, Self)) continue;
+            var chrome = closeChrome && Path.GetFileName(path).Equals("chrome.exe", StringComparison.OrdinalIgnoreCase);
+            if (!chrome && !Blocking.ShouldBlock(path, allowed, WindowsDir, Self)) continue;
             try
             {
                 using var p = Process.GetProcessById(pid);
+                // A Chrome that just opened gets a minute for its extension to wake up and say hello.
+                if (chrome && DateTime.Now - p.StartTime < TimeSpan.FromSeconds(60)) continue;
                 p.Kill();
                 result.Add(new(path, true));
             }

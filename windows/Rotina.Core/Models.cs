@@ -44,6 +44,8 @@ public sealed record Session
     public string DeviceId { get; init; } = "";
     // Copy of the activity at start, so later edits never change a running session.
     public Activity RulesSnapshot { get; init; } = new();
+    /// <summary>Ended early with the recovery key (the only way to end before the minimum).</summary>
+    public bool Recovered { get; init; }
 }
 
 public sealed record SessionEvent
@@ -83,7 +85,7 @@ public static class Api
 // API shapes shared by the service and the desktop app.
 public sealed record AllowedLists(List<string> Android, List<string> Windows, List<string> Web);
 public sealed record StateDto(RuleState State, Session? Session, int SecondsUntilCompletable,
-    AllowedLists? Allowed, Guid? QueuedActivityId, AppMode Mode);
+    AllowedLists? Allowed, Guid? QueuedActivityId, AppMode Mode, int? ExtensionSeenSecondsAgo = null);
 public sealed record ScheduleSaveResult(List<ScheduleEntry> Entries, List<string> Warnings);
 public sealed record StartRequest(Guid ActivityId);
 
@@ -94,7 +96,14 @@ public sealed record PairingCode(string Host, int Port, string Token, string Cod
 public sealed record PairingStatus(bool Paired, DateTimeOffset? LastSeenAt);
 public sealed record CatalogItem(string Identifier, string Label);
 public sealed record SyncPull(long Rev, AppMode Mode, List<Activity> Activities, List<ScheduleEntry> Schedule,
-    List<AlwaysAllowed>? AlwaysAllowed, List<Session> Sessions);
+    List<AlwaysAllowed>? AlwaysAllowed, List<Session> Sessions, string? RecoveryKeyHash,
+    string? TimeZone = null); // IANA id ("America/Sao_Paulo"): the phone reads the schedule in the PC's zone
+
+// Recovery key and production mode (phase 6).
+public sealed record RecoveryKey(string Key);
+public sealed record RecoveryRequest(string Key);
+public sealed record ModeRequest(AppMode Mode, string? Key);
+public sealed record SettingsDto(AppMode Mode, bool RecoveryKeySet, bool RecoveryConfirmed);
 public sealed record SyncPush(List<Session> Sessions);
 public sealed record SyncPushResult(List<Guid> Accepted, List<Guid> Rejected);
 public sealed record MergeResult(bool Accepted, List<Session> Writes);
@@ -106,4 +115,6 @@ public sealed record Settings
     public string TimeZoneId { get; init; } = TimeZoneInfo.Local.Id;
     public string DeviceId { get; init; } = Guid.NewGuid().ToString();
     public string? RecoveryKeyHash { get; init; }
+    /// <summary>The user said the key is printed and with a trusted person; production mode needs this.</summary>
+    public bool RecoveryConfirmed { get; init; }
 }

@@ -1,7 +1,14 @@
 // Run: node --test chrome-extension/rules.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isAllowedHost, shouldRedirect, buildRules } from "./rules.js";
+import { isAllowedHost, shouldRedirect, buildRules, serviceGoneTooLong } from "./rules.js";
+
+test("rules stay while the service is briefly away, and go after 2 hours", () => {
+  const now = Date.parse("2026-10-21T12:00:00Z");
+  assert.equal(serviceGoneTooLong(now - 5 * 60 * 1000, now), false);
+  assert.equal(serviceGoneTooLong(now - 2 * 60 * 60 * 1000, now), false);
+  assert.equal(serviceGoneTooLong(now - 2 * 60 * 60 * 1000 - 1, now), true);
+});
 
 const allowed = ["youtube.com", "github.com"];
 

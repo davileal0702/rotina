@@ -37,6 +37,11 @@ public sealed class Engine(TimeZoneInfo zone, TimeSpan minUnit, string deviceId)
         return NewSession(Guid.NewGuid(), activity, now, SessionOrigin.Manual);
     }
 
+    /// <summary>Recovery key: ends the running session now, even before its minimum. The schedule resumes with the next start.</summary>
+    public static Session Recover(Session current, DateTimeOffset now) => current.EndedAt is null
+        ? current with { EndedAt = now, Recovered = true }
+        : throw new RuleException("Não há atividade em andamento.");
+
     public static Session End(Session current, DateTimeOffset now) => StateOf(current, now) switch
     {
         RuleState.Completable => current with { EndedAt = now },
@@ -125,9 +130,13 @@ public sealed class Engine(TimeZoneInfo zone, TimeSpan minUnit, string deviceId)
         {
             // Known session (a manual start already synced, or a scheduled one both devices made): only an end can be new.
             if (incoming.EndedAt is not { } end || sameId.EndedAt is not null) return new(true, []);
-            return end >= sameId.MinEndsAt ? new(true, [sameId with { EndedAt = end }]) : new(false, []);
+            // shortcut: an early end is trusted when the phone marks it Recovered (it checked the key, maybe offline);
+            // whoever holds the phone's token could fake it. Upgrade by sending the key when online.
+            return end >= sameId.MinEndsAt || incoming.Recovered
+                ? new(true, [sameId with { EndedAt = end, Recovered = incoming.Recovered }])
+                : new(false, []);
         }
-        if (incoming.EndedAt is { } e && e < incoming.MinEndsAt) return new(false, []);
+        if (incoming.EndedAt is { } e && e < incoming.MinEndsAt && !incoming.Recovered) return new(false, []);
         if (open is null) return new(true, [incoming]);
         if (incoming.StartedAt <= open.StartedAt)
         {

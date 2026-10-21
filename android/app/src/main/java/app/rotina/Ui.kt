@@ -40,8 +40,8 @@ fun RotinaTheme(content: @Composable () -> Unit) = MaterialTheme(
 /** Current time, ticking every second, so countdowns and state follow the clock. */
 @Composable
 fun rememberNow(): Instant {
-    var now by remember { mutableStateOf(Instant.now()) }
-    LaunchedEffect(Unit) { while (true) { delay(1000); now = Instant.now() } }
+    var now by remember { mutableStateOf(Repo.now()) }
+    LaunchedEffect(Unit) { while (true) { delay(1000); now = Repo.now() } }
     return now
 }
 

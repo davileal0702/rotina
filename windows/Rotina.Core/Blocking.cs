@@ -10,6 +10,12 @@ public static class Blocking
         "control.exe", "SystemSettings.exe", "msconfig.exe", "resmon.exe", "perfmon.exe",
     };
 
+    /// <summary>
+    /// The Chrome extension has gone quiet (disabled or removed): Chrome is closed during an activity.
+    /// 60 s, because Chrome puts the extension to sleep and its 30 s alarm can be late.
+    /// </summary>
+    public static bool ExtensionMissing(int? secondsSinceHeartbeat) => secondsSinceHeartbeat is null or > 60;
+
     /// <param name="exePath">Full path of the program that owns a visible window.</param>
     /// <param name="allowed">Effective allowed list (activity + always allowed), full .exe paths.</param>
     /// <param name="windowsDir">Windows folder ending with a backslash, e.g. "C:\Windows\".</param>

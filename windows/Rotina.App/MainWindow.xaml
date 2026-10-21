@@ -278,5 +278,62 @@
                 </StackPanel>
             </ScrollViewer>
         </TabItem>
+
+        <!-- ================= Segurança ================= -->
+        <TabItem AutomationProperties.Name="Segurança">
+            <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{StaticResource NavIcon}" Data="M8,11 V7 A4,4 0 0 1 16,7 V11 M5,11 H19 V21 H5 Z"/>
+                    <TextBlock Text="Segurança" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+                </StackPanel>
+            </TabItem.Header>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Text="Segurança" Style="{StaticResource H1}"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,16" TextWrapping="Wrap"
+                               Text="A chave de recuperação encerra qualquer atividade na hora, no PC e no celular. Ela existe para um bug nunca deixar você preso. Entregue-a a uma pessoa de confiança."/>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Chave de recuperação" Style="{StaticResource H2}"/>
+                            <TextBlock x:Name="KeyStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            <Button x:Name="GenerateKeyButton" Content="Gerar chave de recuperação" Style="{StaticResource PrimaryButton}"
+                                    HorizontalAlignment="Left" Margin="0,16,0,0" Click="GenerateKey_Click"/>
+                            <StackPanel x:Name="NewKeyPanel" Visibility="Collapsed" Margin="0,18,0,0">
+                                <TextBlock Text="Anote ou imprima esta chave agora. Ela não aparece de novo." FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                <TextBox x:Name="NewKeyBox" IsReadOnly="True" FontFamily="Consolas" FontSize="24" Margin="0,10,0,0"
+                                         AutomationProperties.Name="Chave de recuperação gerada"/>
+                                <Button x:Name="ConfirmKeyButton" Content="Já entreguei a chave a uma pessoa de confiança" Style="{StaticResource SecondaryButton}"
+                                        HorizontalAlignment="Left" Margin="0,12,0,0" Click="ConfirmKey_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Modo" Style="{StaticResource H2}"/>
+                            <TextBlock x:Name="ModeStatus" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            <Button x:Name="ProductionButton" Content="Ligar modo produção" Style="{StaticResource PrimaryButton}"
+                                    HorizontalAlignment="Left" Margin="0,16,0,0" Click="Production_Click"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Usar a chave" Style="{StaticResource H2}"/>
+                            <Label Content="_Chave de recuperação" Target="{Binding ElementName=UseKeyBox}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="UseKeyBox" FontFamily="Consolas"/>
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button x:Name="RecoverButton" Content="Liberar agora" Style="{StaticResource DangerButton}" Margin="0,0,8,8" Click="Recover_Click"/>
+                                <Button x:Name="ReplaceKeyButton" Content="Trocar a chave" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8" Click="ReplaceKey_Click"/>
+                                <Button x:Name="DevModeButton" Content="Voltar ao modo desenvolvimento" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8" Click="DevMode_Click"/>
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap"
+                                       Text="Liberar agora encerra a atividade atual. A agenda volta a valer na próxima atividade."/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
     </TabControl>
 </Window>

@@ -37,5 +37,10 @@ if (-not $svc) {
 }
 # Restart 5 s after any crash; failure counter resets daily.
 sc.exe failure $name reset= 86400 actions= restart/5000/restart/5000/restart/5000 | Out-Null
+# Data only for the system: a standard account must not edit the database to end an activity early.
+# SIDs instead of names, because group names change with the Windows language.
+$data = Join-Path $env:ProgramData "Rotina"
+New-Item -ItemType Directory -Force $data | Out-Null
+icacls $data /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" | Out-Null
 Start-Service $name
 Get-Service $name

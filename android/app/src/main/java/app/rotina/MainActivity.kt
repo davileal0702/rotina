@@ -214,6 +214,8 @@ private fun SetupScreen(now: Instant) {
     val context = LocalContext.current
     var code by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
+    var recoveryKey by remember { mutableStateOf("") }
+    var recoveryStatus by remember { mutableStateOf("") }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     now.let { } // reading `now` re-checks the permission states every second
     Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -245,6 +247,16 @@ private fun SetupScreen(now: Instant) {
         }
         if (status.isNotEmpty()) Text(status, color = Muted, modifier = Modifier.padding(top = 6.dp))
 
+        Text("Chave de recuperação", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 28.dp).semantics { heading() })
+        Text("Encerra a atividade na hora, mesmo sem conexão. Use só se algo der errado.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(vertical = 6.dp))
+        OutlinedTextField(recoveryKey, { recoveryKey = it }, label = { Text("Chave de recuperação") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedButton(onClick = {
+            recoveryStatus = Repo.recover(recoveryKey)
+            recoveryKey = ""
+            Scheduler.sync(context); Sync.soon(context)
+        }, modifier = Modifier.padding(top = 8.dp).heightIn(min = 48.dp)) { Text("Liberar agora") }
+        if (recoveryStatus.isNotEmpty()) Text(recoveryStatus, color = Muted, modifier = Modifier.padding(top = 6.dp))
+
         Text("Permissões", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 28.dp, bottom = 4.dp).semantics { heading() })
         if (Build.VERSION.SDK_INT >= 33) {
             Text("Antes de ativar a acessibilidade: Informações do app, menu ⋮, \"Permitir configurações restritas\".",
@@ -252,6 +264,9 @@ private fun SetupScreen(now: Instant) {
             TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }) {
                 Text("Abrir informações do app")
             }
+        }
+        Permission("Proteção contra desinstalação", AdminReceiver.isActive(context)) {
+            context.startActivity(AdminReceiver.requestIntent(context))
         }
         Permission("Acessibilidade (bloqueio de apps)", accessibilityOn(context)) {
             context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))

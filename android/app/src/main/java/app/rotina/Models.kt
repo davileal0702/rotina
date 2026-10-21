@@ -41,6 +41,8 @@ data class Session(
     val origin: String, // "schedule" or "manual"
     val deviceId: String,
     val rulesSnapshot: Activity,
+    // Ended early with the recovery key (the only way to end before the minimum).
+    val recovered: Boolean = false,
 )
 
 @Serializable

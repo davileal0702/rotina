@@ -8,13 +8,16 @@ using Rotina.Service;
 
 const int Port = 47800;
 
-var dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Rotina");
+// ROTINA_DATA_DIR: tests run against a throwaway database instead of the real one.
+var dataDir = Environment.GetEnvironmentVariable("ROTINA_DATA_DIR")
+    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Rotina");
 Directory.CreateDirectory(dataDir);
 var store = new Store(Path.Combine(dataDir, "rotina.db"));
 var settings = store.Get<Settings>("settings", "settings");
 if (settings is null) store.Put("settings", "settings", settings = new Settings());
 var engine = Engine.For(settings);
 var gate = new Lock();
+DateTimeOffset? extensionSeen = null; // last heartbeat from the Chrome extension (memory only)
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWindowsService(o => o.ServiceName = "Rotina");
@@ -34,7 +37,7 @@ app.Use(async (ctx, next) =>
     var fromThisPc = remote is null || IPAddress.IsLoopback(remote);
     var phone = TokenDevice(ctx.Request.Headers.Authorization.ToString());
     if (fromThisPc ? !IsLocalHostName(ctx.Request.Host.Host) && phone is null
-                   : phone is null || ctx.Request.Path.StartsWithSegments("/api/v1/pairing"))
+                   : phone is null || LocalOnly(ctx.Request.Path))
     {
         ctx.Response.StatusCode = fromThisPc ? StatusCodes.Status400BadRequest : StatusCodes.Status401Unauthorized;
         return;
@@ -52,7 +55,8 @@ api.MapGet("/state", () => Guarded(() =>
     var now = DateTimeOffset.UtcNow;
     var cur = store.CurrentSession();
     var state = Engine.StateOf(cur, now);
-    if (cur is null) return Results.Ok(new StateDto(state, null, 0, null, null, settings.Mode));
+    int? extensionAge = extensionSeen is { } seen ? (int)(now - seen).TotalSeconds : null;
+    if (cur is null) return Results.Ok(new StateDto(state, null, 0, null, null, settings.Mode, extensionAge));
 
     var always = AlwaysList();
     List<string> With(List<string> own, Platform p) =>
@@ -66,8 +70,15 @@ api.MapGet("/state", () => Guarded(() =>
         new AllowedLists(With(snap.AllowedAndroidPackages, Platform.Android),
             With(snap.AllowedWindowsExecutables, Platform.Windows),
             With(snap.AllowedSites, Platform.Web)),
-        queued?.Activity.Id, settings.Mode));
+        queued?.Activity.Id, settings.Mode, extensionAge));
 }));
+
+// The Chrome extension calls this every few seconds; the desktop app closes Chrome if it stops during an activity.
+api.MapPost("/heartbeat/extension", () =>
+{
+    extensionSeen = DateTimeOffset.UtcNow;
+    return Results.NoContent();
+});
 
 api.MapGet("/activities", () => Guarded(() =>
     Results.Ok(store.All<Activity>("activity").Where(a => !a.Deleted).OrderBy(a => a.Name))));
@@ -147,6 +158,50 @@ api.MapPut("/always-allowed", (List<AlwaysAllowed> list) => Guarded(() =>
     return Results.Ok(list);
 }));
 
+// ---- Recovery key and mode ----
+
+api.MapGet("/settings", () => Guarded(() =>
+    Results.Ok(new SettingsDto(settings.Mode, settings.RecoveryKeyHash is not null, settings.RecoveryConfirmed))));
+
+api.MapPost("/recovery/setup", (RecoveryRequest? current) => Guarded(() =>
+{
+    Engine.EnsureGlobalEditable(store.CurrentSession(), DateTimeOffset.UtcNow);
+    // Replacing a key needs the current one, or a "spare" key could be made while free and kept for later.
+    if (settings.RecoveryKeyHash is not null && !Recovery.Matches(current?.Key ?? "", settings.RecoveryKeyHash))
+        return Results.Json(new { error = "Para gerar uma chave nova, digite a chave atual." }, statusCode: StatusCodes.Status403Forbidden);
+    var key = Recovery.NewKey();
+    SaveSettings(settings with { RecoveryKeyHash = Recovery.Hash(key), RecoveryConfirmed = false });
+    return Results.Ok(new RecoveryKey(key));
+}));
+
+api.MapPost("/recovery/confirm", () => Guarded(() =>
+{
+    if (settings.RecoveryKeyHash is null) return Results.Conflict(new { error = "Gere a chave de recuperação primeiro." });
+    SaveSettings(settings with { RecoveryConfirmed = true });
+    return Results.NoContent();
+}));
+
+api.MapPut("/settings/mode", (ModeRequest req) => Guarded(() =>
+{
+    Engine.EnsureGlobalEditable(store.CurrentSession(), DateTimeOffset.UtcNow);
+    if (req.Mode == AppMode.Production && !settings.RecoveryConfirmed)
+        return Results.Conflict(new { error = "Antes do modo produção, gere a chave de recuperação e confirme que ela está guardada." });
+    // Development reads minimums as seconds, so leaving production needs the key.
+    if (req.Mode == AppMode.Development && settings.Mode == AppMode.Production && !Recovery.Matches(req.Key ?? "", settings.RecoveryKeyHash))
+        return Results.Json(new { error = "Para voltar ao modo desenvolvimento, digite a chave de recuperação." }, statusCode: StatusCodes.Status403Forbidden);
+    SaveSettings(settings with { Mode = req.Mode });
+    return Results.NoContent();
+}));
+
+// From this PC or the paired phone: ends the running activity now, even before its minimum.
+api.MapPost("/recovery", (RecoveryRequest req) => Guarded(() =>
+{
+    if (!Recovery.Matches(req.Key, settings.RecoveryKeyHash))
+        return Results.Json(new { error = "Chave de recuperação incorreta." }, statusCode: StatusCodes.Status403Forbidden);
+    if (store.CurrentSession() is { } cur) Apply(Engine.Recover(cur, DateTimeOffset.UtcNow), null);
+    return Results.NoContent();
+}));
+
 // ---- Phone pairing and sync ----
 
 api.MapPost("/pairing", () => Guarded(() =>
@@ -170,7 +225,9 @@ api.MapGet("/sync", (long? since) => Guarded(() =>
     return Results.Ok(new SyncPull(store.MaxRev(), settings.Mode,
         store.Since<Activity>("activity", rev), store.Since<ScheduleEntry>("schedule", rev),
         store.Since<List<AlwaysAllowed>>("alwaysAllowed", rev).FirstOrDefault(),
-        store.Since<Session>("session", rev)));
+        store.Since<Session>("session", rev), settings.RecoveryKeyHash,
+        // Same zone on both devices, or "08:00" would mean different moments and scheduled session ids would differ.
+        TimeZoneInfo.TryConvertWindowsIdToIanaId(settings.TimeZoneId, out var iana) ? iana : settings.TimeZoneId));
 }));
 
 api.MapPost("/sync", (SyncPush push) => Guarded(() =>
@@ -275,6 +332,19 @@ void Record(Session s, SessionEventType type, DateTimeOffset at, string? deviceI
 static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
 static bool IsLocalHostName(string host) => host is "localhost" or "127.0.0.1" or "[::1]" or "::1";
+
+// Pairing, the recovery key setup and the mode are changed only on this PC, never over the network.
+static bool LocalOnly(PathString path) =>
+    path.StartsWithSegments("/api/v1/pairing") || path.StartsWithSegments("/api/v1/settings")
+    || path.StartsWithSegments("/api/v1/recovery/setup") || path.StartsWithSegments("/api/v1/recovery/confirm")
+    || path.StartsWithSegments("/api/v1/heartbeat");
+
+void SaveSettings(Settings s)
+{
+    settings = s;
+    store.Put("settings", "settings", s);
+    engine = Engine.For(s); // the mode decides whether minimums are seconds or minutes
+}
 
 /// <summary>The paired phone when the header carries its token, otherwise null.</summary>
 Device? TokenDevice(string authorization)

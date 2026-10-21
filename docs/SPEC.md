@@ -263,13 +263,13 @@ Depois da v1: bloqueio de sites no celular, edição de atividades pelo celular 
 Estas escolhas não bloqueiam o início do desenvolvimento; as primeiras afetam a fase 1, as demais só a fase 6.
 
 - [x] **Conflito de horário:** quando uma atividade agendada chega e a atual ainda está travada, a nova entra na fila (proposta atual) ou substitui a atual? **Decidido: entra na fila.**
-- [ ] **Sempre liberados:** além do telefone e do próprio Rotina, o que mais? (WhatsApp, mapas, app do banco, calculadora?)
-- [ ] **Ação de bloqueio no Windows:** fechar o app (pode perder trabalho não salvo) ou só cobri-lo com a tela de aviso?
-- [ ] **Aviso antecipado:** notificar alguns minutos antes de uma atividade agendada começar?
-- [ ] **Android:** Device Owner (proteção forte, exige remover as contas temporariamente) ou Device Admin (mais simples, mais fraco)?
-- [ ] **Conta no Windows:** passar a usar uma conta padrão no dia a dia, com a senha de administrador guardada com outra pessoa?
-- [ ] **Chave de recuperação:** quem guarda, e por quanto tempo ela libera os aparelhos?
-- [ ] **Extensão:** publicar como não listada na Chrome Web Store para permitir a instalação forçada, ou contar só com o heartbeat?
+- [x] **Sempre liberados:** além do telefone e do próprio Rotina, o que mais? (WhatsApp, mapas, app do banco, calculadora?) **Decidido: o usuário preenche na aba Sempre liberados.**
+- [x] **Ação de bloqueio no Windows:** fechar o app (pode perder trabalho não salvo) ou só cobri-lo com a tela de aviso? **Decidido: fechar o app.**
+- [x] **Aviso antecipado:** notificar alguns minutos antes de uma atividade agendada começar? **Decidido: sim, 5 minutos antes, no PC e no celular.**
+- [x] **Android:** Device Owner (proteção forte, exige remover as contas temporariamente) ou Device Admin (mais simples, mais fraco)? **Decidido: Device Admin.**
+- [x] **Conta no Windows:** passar a usar uma conta padrão no dia a dia, com a senha de administrador guardada com outra pessoa? **Decidido: sim, conta padrão.**
+- [x] **Chave de recuperação:** quem guarda, e por quanto tempo ela libera os aparelhos? **Decidido: uma pessoa de confiança guarda; a chave encerra a atividade atual e libera até a próxima atividade.**
+- [x] **Extensão:** publicar como não listada na Chrome Web Store para permitir a instalação forçada, ou contar só com o heartbeat? **Decidido: só o heartbeat, sem publicar.**
 
 ## Ajustes decididos (19/10/2026)
 
@@ -315,6 +315,15 @@ Estes ajustes valem por cima do texto acima quando houver diferença.
 - `GET /sync?since=<rev>` devolve atividades, agenda, sempre liberados e sessões com revisão maior. `POST /sync` recebe as sessões que o celular criou ou encerrou e aplica cada uma pela regra `Engine.MergeSession`: nada encerra antes do mínimo e, se duas atividades se sobrepõem, a mais nova só vale se a anterior já podia ser encerrada. O PC vence os empates.
 - O celular sincroniza a cada ~45 s (pelo serviço de acessibilidade), quando a rede volta e logo depois de iniciar ou encerrar. As mudanças feitas offline ficam numa fila até o PC aceitar.
 - O celular envia ao PC a lista de apps com ícone, para escolher os apps Android liberados numa lista com busca.
+
+**Proteções (fase 6)**
+
+- Chave de recuperação: 20 caracteres sem 0/O/1/I; o PC e o celular guardam só o SHA-256. Ela encerra a atividade atual na hora (sessão marcada `recovered`), no PC ou no celular, mesmo sem conexão. Gerar uma chave nova exige a atual. O modo produção só liga depois de confirmar que a chave foi entregue, e voltar ao desenvolvimento exige a chave.
+- Heartbeat: a extensão chama `POST /heartbeat/extension` a cada consulta. Durante uma atividade, se ela some por mais de 60 s, o App do PC fecha o Chrome (um Chrome aberto há menos de 60 s é poupado). Sem resposta do serviço por 2 horas, a extensão libera os sites.
+- Android: Device Admin sem políticas, só para impedir a desinstalação. Um salto do relógio para frente durante uma atividade é ignorado (o app usa o relógio de tempo ligado, que o usuário não muda).
+- Aviso 5 minutos antes de cada atividade agendada: notificação no celular (alarme exato) e balão do Windows no PC.
+- O PC manda o seu fuso (IANA) na sincronização e o celular passa a ler a agenda nele; antes, com fusos diferentes, "08:00" virava momentos diferentes.
+- O instalador deixa `%ProgramData%\Rotina` acessível só ao SYSTEM e aos Administradores.
 
 ## Como entregar ao Claude Code
 

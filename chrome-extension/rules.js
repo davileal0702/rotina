@@ -2,6 +2,12 @@
 
 export const BLOCK_RULE_ID = 1;
 export const FIRST_ALLOW_ID = 2;
+export const SERVICE_GRACE_MS = 2 * 60 * 60 * 1000;
+
+/** The service has not answered for 2 hours: give up blocking rather than block forever. */
+export function serviceGoneTooLong(lastOkMs, nowMs) {
+  return nowMs - lastOkMs > SERVICE_GRACE_MS;
+}
 
 /** "youtube.com" allows youtube.com and any subdomain (m.youtube.com), like the SPEC says. */
 export function isAllowedHost(host, allowedSites) {

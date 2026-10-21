@@ -17,6 +17,8 @@ import java.util.concurrent.Executors
     val rev: Long, val mode: String = "development", val activities: List<Activity> = emptyList(),
     val schedule: List<ScheduleEntry> = emptyList(), val alwaysAllowed: List<AlwaysAllowed>? = null,
     val sessions: List<Session> = emptyList(),
+    val recoveryKeyHash: String? = null,
+    val timeZone: String? = null, // the PC's zone; the schedule is read in it
 )
 @Serializable data class SyncPush(val sessions: List<Session>)
 @Serializable data class SyncPushResult(val accepted: List<String> = emptyList(), val rejected: List<String> = emptyList())
@@ -59,7 +61,13 @@ object Sync {
 
     fun pair(context: Context, code: String): String {
         val (base, token) = parsePairing(code) ?: return "Código inválido. Ele começa com rotina://pair"
-        Repo.update { it.copy(pcBaseUrl = base, token = token, lastRev = 0, catalogHash = 0, lastSyncError = "") }
+        // Re-pairing must not become a way out of a running activity.
+        if (Repo.state() == RuleState.LOCKED) return "Termine a atividade atual antes de parear de novo."
+        // Another PC (or a fresh database): drop what came from the old one; local sessions still get sent.
+        Repo.update {
+            it.copy(pcBaseUrl = base, token = token, lastRev = 0, catalogHash = 0, lastSyncError = "",
+                activities = emptyList(), schedule = emptyList(), alwaysAllowed = emptyList(), recoveryKeyHash = null)
+        }
         soon(context)
         return "Pareado. Sincronizando..."
     }
@@ -71,7 +79,10 @@ object Sync {
                 val res = json.decodeFromString<SyncPushResult>(http("POST", "sync", json.encodeToString(SyncPush.serializer(), SyncPush(sent))))
                 Repo.afterPush(sent, res.rejected.toSet())
             }
-            Repo.applyPull(json.decodeFromString<SyncPull>(http("GET", "sync?since=${Repo.data.lastRev}")))
+            var pull = json.decodeFromString<SyncPull>(http("GET", "sync?since=${Repo.data.lastRev}"))
+            // The PC is behind what we saw (another PC, or its database was recreated): start over from 0.
+            if (pull.rev < Repo.data.lastRev) pull = json.decodeFromString<SyncPull>(http("GET", "sync?since=0"))
+            Repo.applyPull(pull)
             val catalog = installedApps(context)
             if (catalog.hashCode() != Repo.data.catalogHash) {
                 http("POST", "catalog/android", json.encodeToString(ListSerializer(CatalogItem.serializer()), catalog))

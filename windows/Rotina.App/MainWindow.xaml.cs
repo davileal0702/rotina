@@ -32,6 +32,20 @@ public partial class MainWindow : Window
     bool online, refreshing, busy;
     int ticks;
     List<ScheduleEntry> schedule = [];
+    readonly HashSet<string> warned = [];
+
+    /// <summary>Windows notification 5 minutes before a scheduled start, once per occurrence.</summary>
+    void WarnBeforeStart()
+    {
+        var now = DateTime.Now;
+        foreach (var e in schedule.Where(e => e.Enabled && !e.Deleted && e.DaysOfWeek.Contains(now.DayOfWeek)))
+        {
+            var left = now.Date + e.StartTime.ToTimeSpan() - now;
+            if (left <= TimeSpan.Zero || left > TimeSpan.FromMinutes(5) || !warned.Add($"{e.Id}:{now:yyyy-MM-dd}")) continue;
+            var name = activities.FirstOrDefault(a => a.Id == e.ActivityId)?.Name ?? "Uma atividade";
+            tray.ShowBalloonTip(10_000, $"{name} começa em 5 minutos", "Salve o que estiver fazendo.", System.Windows.Forms.ToolTipIcon.Info);
+        }
+    }
     DateTime todayShown;
 
     readonly System.Windows.Forms.NotifyIcon tray = new() { Visible = true };
@@ -104,17 +118,21 @@ public partial class MainWindow : Window
     void EnforceBlocking(StateDto s)
     {
         if (s.State == RuleState.Free || s.Allowed is null || s.Session is null) return;
-        foreach (var b in Blocker.Enforce(s.Allowed.Windows))
+        var extensionMissing = Blocking.ExtensionMissing(s.ExtensionSeenSecondsAgo);
+        foreach (var b in Blocker.Enforce(s.Allowed.Windows, extensionMissing))
         {
             var name = AppCatalog.Describe(b.Path).Name;
             var activity = s.Session.RulesSnapshot;
             var wait = s.State == RuleState.Locked
                 ? $"Faltam {Clock(s.SecondsUntilCompletable)} para poder encerrar."
                 : "Você já pode encerrar a atividade no Rotina.";
+            // Chrome is allowed but was closed because its extension is off.
+            var chromeOnly = extensionMissing && s.Allowed.Windows.Contains(b.Path, StringComparer.OrdinalIgnoreCase);
             BlockToast.Notify(
                 b.Closed ? $"{name} foi fechado" : $"{name} não está liberado",
-                b.Closed ? $"Não está liberado em {activity.Name}. {wait}"
-                         : $"Não está liberado em {activity.Name}, mas roda como administrador e não pôde ser fechado.",
+                chromeOnly ? $"A extensão do Rotina está desativada. Reative em chrome://extensions para usar o Chrome em {activity.Name}."
+                : b.Closed ? $"Não está liberado em {activity.Name}. {wait}"
+                : $"Não está liberado em {activity.Name}, mas roda como administrador e não pôde ser fechado.",
                 ColorBrush(activity.Color));
         }
     }
@@ -165,8 +183,9 @@ public partial class MainWindow : Window
                 : activities.Count == 0 ? "Nenhuma atividade ainda. Crie uma na aba Atividades." : "Escolha uma atividade para começar agora.";
             DevNote.Visibility = s.Mode == AppMode.Development ? Visibility.Visible : Visibility.Collapsed;
             if (DateTime.Today != todayShown) ShowToday(); // app left open past midnight
+            WarnBeforeStart();
             UpdateRunningLock();
-            if (++ticks % 5 == 1) await RefreshPairing();
+            if (++ticks % 5 == 1) { await RefreshPairing(); await RefreshSecurity(); }
         }
         finally { refreshing = false; }
     }
@@ -182,6 +201,77 @@ public partial class MainWindow : Window
     }
 
     // ---- Phone ----
+
+    // ---- Security: recovery key and mode ----
+
+    async Task RefreshSecurity()
+    {
+        var (ok, s) = await Send<SettingsDto>(HttpMethod.Get, "settings");
+        if (!ok || s is null) return;
+        KeyStatus.Text = !s.RecoveryKeySet ? "Nenhuma chave gerada ainda. Gere uma antes de ligar o modo produção."
+            : s.RecoveryConfirmed ? "Chave gerada e entregue."
+            : "Chave gerada, mas você ainda não confirmou que a entregou.";
+        GenerateKeyButton.Visibility = s.RecoveryKeySet ? Visibility.Collapsed : Visibility.Visible;
+        var prod = s.Mode == AppMode.Production;
+        ModeStatus.Text = prod
+            ? "Produção: os tempos mínimos contam em minutos e as proteções estão ligadas."
+            : "Desenvolvimento: os tempos mínimos contam em segundos. Ligue a produção quando terminar de testar.";
+        ProductionButton.Visibility = prod ? Visibility.Collapsed : Visibility.Visible;
+        ProductionButton.IsEnabled = s.RecoveryConfirmed;
+        ProductionButton.ToolTip = s.RecoveryConfirmed ? null : "Gere a chave e confirme que ela foi entregue";
+        DevModeButton.Visibility = prod ? Visibility.Visible : Visibility.Collapsed;
+        ReplaceKeyButton.Visibility = s.RecoveryKeySet ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    async void GenerateKey_Click(object sender, RoutedEventArgs e) => await NewKey(GenerateKeyButton, "");
+
+    async void ReplaceKey_Click(object sender, RoutedEventArgs e) => await NewKey(ReplaceKeyButton, UseKeyBox.Text);
+
+    async Task NewKey(Button button, string current)
+    {
+        var (ok, k) = await Busy(button, () => Send<RecoveryKey>(HttpMethod.Post, "recovery/setup", new RecoveryRequest(current)));
+        if (!ok || k is null) return;
+        NewKeyBox.Text = k.Key;
+        NewKeyPanel.Visibility = Visibility.Visible;
+        UseKeyBox.Clear();
+        await RefreshSecurity();
+    }
+
+    async void ConfirmKey_Click(object sender, RoutedEventArgs e)
+    {
+        if (!(await Busy(ConfirmKeyButton, () => Send<object>(HttpMethod.Post, "recovery/confirm", new { }))).Ok) return;
+        NewKeyBox.Clear(); // the key leaves the screen once it is safe elsewhere
+        NewKeyPanel.Visibility = Visibility.Collapsed;
+        await RefreshSecurity();
+    }
+
+    async void Production_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show(this,
+                "No modo produção os tempos mínimos passam a contar em minutos e só a chave de recuperação encerra uma atividade antes do tempo. Ligar agora?",
+                "Rotina", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        await Busy(ProductionButton, () => Send<object>(HttpMethod.Put, "settings/mode", new ModeRequest(AppMode.Production, null)));
+        await RefreshSecurity();
+    }
+
+    async void DevMode_Click(object sender, RoutedEventArgs e)
+    {
+        await Busy(DevModeButton, () => Send<object>(HttpMethod.Put, "settings/mode", new ModeRequest(AppMode.Development, UseKeyBox.Text)));
+        UseKeyBox.Clear();
+        await RefreshSecurity();
+    }
+
+    async void Recover_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show(this, "Encerrar a atividade atual agora, no PC e no celular?", "Rotina",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if ((await Busy(RecoverButton, () => Send<object>(HttpMethod.Post, "recovery", new RecoveryRequest(UseKeyBox.Text)))).Ok)
+        {
+            UseKeyBox.Clear();
+            MessageBox.Show(this, "Atividade encerrada. A agenda volta a valer na próxima atividade.", "Rotina");
+        }
+        await RefreshState();
+    }
 
     async Task RefreshPairing()
     {

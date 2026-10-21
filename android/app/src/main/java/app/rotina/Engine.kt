@@ -121,6 +121,11 @@ class Engine(private val zone: ZoneId, private val minUnit: Duration, private va
             else -> RuleState.COMPLETABLE
         }
 
+        /** Recovery key: ends the running session now, even before its minimum. */
+        fun recover(current: Session, now: Instant): Session =
+            if (current.endedAt == null) current.copy(endedAt = now.toString(), recovered = true)
+            else throw RuleException("Não há atividade em andamento.")
+
         fun end(current: Session, now: Instant): Session = when (stateOf(current, now)) {
             RuleState.COMPLETABLE -> current.copy(endedAt = now.toString())
             RuleState.LOCKED -> throw RuleException("Ainda não atingiu o tempo mínimo.")
