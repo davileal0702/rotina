@@ -7,6 +7,19 @@ function clock(seconds) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+// The address that was blocked comes after "#". Only web pages are reopened.
+const hash = location.href.indexOf("#");
+const original = hash < 0 ? "" : location.href.slice(hash + 1);
+const back = /^https?:\/\//i.test(original) ? original : "";
+
+function allowedNow(state) {
+  if (state.state === "free" || !state.session) return true;
+  try {
+    const host = new URL(back).hostname.toLowerCase();
+    return state.allowed.web.some((d) => host === d || host.endsWith("." + d));
+  } catch { return false; }
+}
+
 async function show() {
   let state;
   try {
@@ -15,7 +28,10 @@ async function show() {
     $("detail").textContent = "Não foi possível falar com o Rotina. Verifique se o serviço está rodando.";
     return;
   }
+  // Activity over (or this site now allowed): go back to the page that was blocked.
+  if (back && allowedNow(state)) { location.replace(back); return; }
   if (state.state === "free" || !state.session) {
+    document.documentElement.style.removeProperty("--accent"); // back to the default color, not the old activity's
     $("title").textContent = "Nenhuma atividade em andamento";
     $("detail").textContent = "Tudo está liberado agora. Volte e abra o site de novo.";
     $("clock").hidden = true;

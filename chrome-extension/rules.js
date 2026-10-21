@@ -26,14 +26,15 @@ export function shouldRedirect(url, allowedSites) {
 /**
  * declarativeNetRequest rules for an activity: redirect every page and frame to the block page,
  * except the allowed domains (higher priority). requestDomains already matches subdomains.
+ * The original address goes after "#" so the block page can return to it when the activity ends.
  */
-export function buildRules(allowedSites, blockPagePath) {
+export function buildRules(allowedSites, blockPageUrl) {
   const types = ["main_frame", "sub_frame"]; // images/scripts from other domains still load, so allowed sites work
   const rules = [{
     id: BLOCK_RULE_ID,
     priority: 1,
-    action: { type: "redirect", redirect: { extensionPath: blockPagePath } },
-    condition: { regexFilter: "^https?://", resourceTypes: types },
+    action: { type: "redirect", redirect: { regexSubstitution: `${blockPageUrl}#\\0` } },
+    condition: { regexFilter: "^https?://.*", resourceTypes: types },
   }];
   if (allowedSites.length > 0) {
     rules.push({

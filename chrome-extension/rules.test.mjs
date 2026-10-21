@@ -28,8 +28,10 @@ test("only http(s) pages outside the list are redirected", () => {
 });
 
 test("rules: block everything, allow listed domains with higher priority", () => {
-  const rules = buildRules(allowed, "/blocked.html");
+  const rules = buildRules(allowed, "chrome-extension://id/blocked.html");
   assert.equal(rules.length, 2);
+  // The blocked address rides along after "#", so the page can go back to it later.
+  assert.equal(rules[0].action.redirect.regexSubstitution, "chrome-extension://id/blocked.html#\\0");
   assert.ok(rules[1].priority > rules[0].priority);
   assert.deepEqual(rules[1].condition.requestDomains, allowed);
   assert.equal(buildRules([], "/blocked.html").length, 1);

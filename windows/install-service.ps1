@@ -7,6 +7,9 @@ $name = "Rotina"
 $out = Join-Path $env:ProgramFiles "Rotina\Service"
 $appOut = Join-Path $env:ProgramFiles "Rotina\App"
 $runKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+# Chrome: no Incognito, no Guest, no new profiles, so every window runs a profile that has the Rotina extension.
+$chromeKey = "HKLM:\SOFTWARE\Policies\Google\Chrome"
+$chromePolicies = [ordered]@{ IncognitoModeAvailability = 1; BrowserGuestModeEnabled = 0; BrowserAddPersonEnabled = 0 }
 
 $svc = Get-Service $name -ErrorAction SilentlyContinue
 if ($svc) { Stop-Service $name -Force }
@@ -16,6 +19,7 @@ if ($Uninstall) {
     if ($svc) { sc.exe delete $name | Out-Null }
     Remove-ItemProperty $runKey -Name $name -ErrorAction SilentlyContinue
     Remove-NetFirewallRule -DisplayName "Rotina (celular)" -ErrorAction SilentlyContinue
+    foreach ($p in $chromePolicies.Keys) { Remove-ItemProperty $chromeKey -Name $p -ErrorAction SilentlyContinue }
     Write-Host "Serviço removido. Os dados continuam em $env:ProgramData\Rotina."
     return
 }
@@ -42,5 +46,8 @@ sc.exe failure $name reset= 86400 actions= restart/5000/restart/5000/restart/500
 $data = Join-Path $env:ProgramData "Rotina"
 New-Item -ItemType Directory -Force $data | Out-Null
 icacls $data /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" | Out-Null
+New-Item -Path $chromeKey -Force | Out-Null
+foreach ($p in $chromePolicies.Keys) { New-ItemProperty $chromeKey -Name $p -Value $chromePolicies[$p] -PropertyType DWord -Force | Out-Null }
+Write-Host "Políticas do Chrome aplicadas. Feche e abra o Chrome; confira em chrome://policy."
 Start-Service $name
 Get-Service $name

@@ -25,7 +25,7 @@ async function refresh() {
   const sites = active ? state.allowed.web : [];
   await chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: [BLOCK_RULE_ID, FIRST_ALLOW_ID],
-    addRules: active ? buildRules(sites, BLOCK_PAGE) : [],
+    addRules: active ? buildRules(sites, chrome.runtime.getURL(BLOCK_PAGE)) : [],
   });
 
   // When a new activity starts, tabs that were already open on other sites go to the block page too.
@@ -34,7 +34,7 @@ async function refresh() {
   if (sessionId && sessionId !== lastSessionId) {
     for (const tab of await chrome.tabs.query({})) {
       if (tab.id !== undefined && tab.url && shouldRedirect(tab.url, sites))
-        await chrome.tabs.update(tab.id, { url: chrome.runtime.getURL(BLOCK_PAGE) });
+        await chrome.tabs.update(tab.id, { url: `${chrome.runtime.getURL(BLOCK_PAGE)}#${tab.url}` });
     }
   }
   if (sessionId !== lastSessionId) await chrome.storage.session.set({ lastSessionId: sessionId });
