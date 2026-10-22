@@ -56,7 +56,46 @@ public static class AppCatalog
                 catch (InvalidOperationException) { } // exited meanwhile
             }
         }
+        foreach (var app in StoreApps())
+            if (!found.Values.Any(f => Rotina.Core.Blocking.StorePackageId(f.Path) == Rotina.Core.Blocking.StorePackageId(app.Path)))
+                found[app.Path] = app;
         return [.. found.Values.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase)];
+    }
+
+    /// <summary>
+    /// Store (MSIX) apps installed for this user, such as Spotify and Claude: they have no Start Menu .lnk.
+    /// One entry per package; the blocking rule then allows every program of that package (Blocking.StorePackageId).
+    /// </summary>
+    static IEnumerable<WinApp> StoreApps()
+    {
+        using var packages = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+            @"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages");
+        if (packages is null) yield break;
+        foreach (var name in packages.GetSubKeyNames())
+        {
+            WinApp? app = null;
+            try
+            {
+                using var key = packages.OpenSubKey(name);
+                if (key?.GetValue("PackageRootFolder") is not string root || root.StartsWith(WindowsDir, StringComparison.OrdinalIgnoreCase)) continue;
+                var manifest = new System.Xml.XmlDocument();
+                manifest.Load(Path.Combine(root, "AppxManifest.xml"));
+                if (manifest.GetElementsByTagName("Framework") is { Count: > 0 } fw && fw[0]!.InnerText == "true") continue;
+                // Apps hidden from the Start Menu (helpers, extensions) are not offered.
+                var visual = manifest.GetElementsByTagName("uap:VisualElements");
+                if (visual.Count > 0 && (visual[0] as System.Xml.XmlElement)?.GetAttribute("AppListEntry") == "none") continue;
+                var exe = manifest.GetElementsByTagName("Application").OfType<System.Xml.XmlElement>()
+                    .Select(a => a.GetAttribute("Executable")).FirstOrDefault(e => e.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+                if (exe is null || !File.Exists(Path.Combine(root, exe))) continue;
+                var label = manifest.GetElementsByTagName("DisplayName") is { Count: > 0 } dn ? dn[0]!.InnerText : "";
+                if (label.Length == 0 || label.StartsWith("ms-resource", StringComparison.OrdinalIgnoreCase))
+                    label = name.Split('_')[0].Split('.').Last(); // "SpotifyAB.SpotifyMusic_..." -> "SpotifyMusic"
+                var path = Path.Combine(root, exe);
+                app = new WinApp(label, path, IconOf(path));
+            }
+            catch (Exception) { } // unreadable manifest: skip that package
+            if (app is not null) yield return app;
+        }
     }
 
     static IEnumerable<string> SafeEnumerate(string root)

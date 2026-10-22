@@ -56,7 +56,8 @@ api.MapGet("/state", () => Guarded(() =>
     var cur = store.CurrentSession();
     var state = Engine.StateOf(cur, now);
     int? extensionAge = extensionSeen is { } seen ? (int)(now - seen).TotalSeconds : null;
-    if (cur is null) return Results.Ok(new StateDto(state, null, 0, null, null, settings.Mode, extensionAge));
+    var next = NextStart(now) is { } n ? new NextStartDto(n.Entry.Id, n.Activity.Name, n.Activity.Color, n.At) : null;
+    if (cur is null) return Results.Ok(new StateDto(state, null, 0, null, null, settings.Mode, extensionAge, next));
 
     var always = AlwaysList();
     List<string> With(List<string> own, Platform p) =>
@@ -70,7 +71,7 @@ api.MapGet("/state", () => Guarded(() =>
         new AllowedLists(With(snap.AllowedAndroidPackages, Platform.Android),
             With(snap.AllowedWindowsExecutables, Platform.Windows),
             With(snap.AllowedSites, Platform.Web)),
-        queued?.Activity.Id, settings.Mode, extensionAge));
+        queued?.Activity.Id, settings.Mode, extensionAge, next));
 }));
 
 // The Chrome extension calls this every few seconds; the desktop app closes Chrome if it stops during an activity.
@@ -136,6 +137,16 @@ api.MapPost("/sessions/start", (StartRequest req) => Guarded(() =>
 {
     if (store.Get<Activity>("activity", req.ActivityId) is not { Deleted: false } a) return Results.NotFound();
     var started = engine.StartManual(store.CurrentSession(), a, DateTimeOffset.UtcNow, out var ended);
+    Apply(ended, started);
+    return Results.Ok(started);
+}));
+
+// Starts the next scheduled activity now; at its scheduled time it does not start again.
+api.MapPost("/sessions/start-next", () => Guarded(() =>
+{
+    var now = DateTimeOffset.UtcNow;
+    if (NextStart(now) is not { } next) return Results.NotFound();
+    var started = engine.StartEarly(store.CurrentSession(), next, now, out var ended);
     Apply(ended, started);
     return Results.Ok(started);
 }));
@@ -374,5 +385,7 @@ static string? LanAddress() => NetworkInterface.GetAllNetworkInterfaces()
     .FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)?.ToString();
 
 Dictionary<Guid, Activity> Activities() => store.All<Activity>("activity").ToDictionary(a => a.Id);
+PendingStart? NextStart(DateTimeOffset now) =>
+    engine.NextStart(store.All<ScheduleEntry>("schedule"), Activities(), id => store.Exists("session", id), now);
 List<AlwaysAllowed> AlwaysList() => store.Get<List<AlwaysAllowed>>("alwaysAllowed", "all") ?? [];
 static List<string> Clean(List<string>? list) => [.. (list ?? []).Select(x => x.Trim()).Where(x => x.Length > 0).Distinct()];

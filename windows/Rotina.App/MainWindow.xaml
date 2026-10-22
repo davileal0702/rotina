@@ -38,6 +38,8 @@
                                     VerticalAlignment="Center" Margin="0,0,24,0" Click="End_Click" Visibility="Collapsed"/>
                         </Grid>
                     </Border>
+                    <Button x:Name="StartNextButton" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left"
+                            Margin="0,12,0,0" Click="StartNext_Click" Visibility="Collapsed"/>
                     <TextBlock x:Name="DevNote" Style="{StaticResource Caption}" Margin="4,8,0,0" Visibility="Collapsed"
                                Text="Modo desenvolvimento: os tempos mínimos contam em segundos, não em minutos."/>
 
@@ -303,9 +305,10 @@
                                 <TextBlock Text="Anote ou imprima esta chave agora. Ela não aparece de novo." FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 <TextBox x:Name="NewKeyBox" IsReadOnly="True" FontFamily="Consolas" FontSize="24" Margin="0,10,0,0"
                                          AutomationProperties.Name="Chave de recuperação gerada"/>
-                                <Button x:Name="ConfirmKeyButton" Content="Já entreguei a chave a uma pessoa de confiança" Style="{StaticResource SecondaryButton}"
-                                        HorizontalAlignment="Left" Margin="0,12,0,0" Click="ConfirmKey_Click"/>
                             </StackPanel>
+                            <!-- Outside the key panel: still there after the window is closed and reopened. -->
+                            <Button x:Name="ConfirmKeyButton" Content="Já entreguei a chave a uma pessoa de confiança" Style="{StaticResource SecondaryButton}"
+                                    HorizontalAlignment="Left" Margin="0,12,0,0" Click="ConfirmKey_Click" Visibility="Collapsed"/>
                         </StackPanel>
                     </Border>
 

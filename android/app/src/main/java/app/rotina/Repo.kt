@@ -100,6 +100,17 @@ object Repo {
     @Synchronized fun startManual(activityId: String) =
         apply(engine.startManual(current(), activities().getValue(activityId), now()))
 
+    fun nextStart(now: Instant = now()): PendingStart? {
+        val ids = data.sessions.mapTo(HashSet()) { it.id }
+        return engine.nextStart(data.schedule, activities(), { it in ids }, now)
+    }
+
+    @Synchronized fun startEarly() {
+        val now = now()
+        val next = nextStart(now) ?: throw RuleException("Nenhuma atividade agendada.")
+        apply(engine.startEarly(current(), next, now))
+    }
+
     @Synchronized fun end() = current()?.let { apply(TickResult(Engine.end(it, now()), null)) }
 
     /** Recovery key: ends the running activity now, even before its minimum; the PC takes it on the next sync. */

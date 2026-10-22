@@ -96,6 +96,26 @@ class Engine(private val zone: ZoneId, private val minUnit: Duration, private va
         return null
     }
 
+    /** The soonest scheduled start after now that was not already started early. */
+    fun nextStart(entries: List<ScheduleEntry>, activities: Map<String, Activity>, sessionExists: (String) -> Boolean, now: Instant): PendingStart? =
+        entries.mapNotNull { e ->
+            val a = activities[e.activityId]
+            if (!e.enabled || e.deleted || a == null || a.deleted) return@mapNotNull null
+            nextOccurrence(e, now)?.let { PendingStart(e, a, it) }
+        }.filterNot { sessionExists(scheduledSessionId(it.entry, it.at)) }.minByOrNull { it.at }
+
+    /**
+     * "Start it now": begins the next scheduled activity early. It gets that occurrence's session id,
+     * so when the scheduled time comes nothing starts a second time (the session already exists).
+     */
+    fun startEarly(current: Session?, next: PendingStart, now: Instant): TickResult {
+        if (next.activity.deleted) throw RuleException("Atividade excluída.")
+        if (stateOf(current, now) == RuleState.LOCKED)
+            throw RuleException("A atividade atual ainda não atingiu o tempo mínimo.")
+        val ended = current?.takeIf { it.endedAt == null }?.copy(endedAt = now.toString())
+        return TickResult(ended, newSession(scheduledSessionId(next.entry, next.at), next.activity, now, "schedule"))
+    }
+
     /** Same id on every device: first 16 bytes of SHA-256("schedule:{entryId}:{yyyy-MM-dd}") as a UUID. */
     fun scheduledSessionId(e: ScheduleEntry, occurrence: Instant): String {
         val date = occurrence.atZone(zone).toLocalDate()

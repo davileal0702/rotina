@@ -62,6 +62,17 @@ class EngineTest {
         assertEquals(mon8.plusSeconds(30 * 60), ts(r.started!!.startedAt))
     }
 
+    @Test fun `starting the next activity early does not start it again at its time`() {
+        val e = entry(study, "10:00:00")
+        val next = engine.nextStart(listOf(e), acts, { false }, mon8)!!
+        val early = engine.startEarly(null, next, mon8).started!!
+        assertEquals(mon8, ts(early.startedAt))
+        assertEquals(engine.scheduledSessionId(e, mon8.plusSeconds(7200)), early.id)
+        val ended = early.copy(endedAt = mon8.plusSeconds(40 * 60).toString())
+        assertNull(engine.tick(ended, listOf(e), acts, { it == early.id }, mon8.plusSeconds(7205)).started)
+        assertNull(engine.nextStart(listOf(e), acts, { it == early.id }, mon8.plusSeconds(41 * 60)))
+    }
+
     @Test fun `next occurrence is strictly after now`() {
         val e = entry(study, "08:00:00")
         assertEquals(mon8, engine.nextOccurrence(e, mon8.minusSeconds(1)))

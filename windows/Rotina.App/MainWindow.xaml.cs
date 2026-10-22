@@ -34,16 +34,23 @@ public partial class MainWindow : Window
     List<ScheduleEntry> schedule = [];
     readonly HashSet<string> warned = [];
 
-    /// <summary>Windows notification 5 minutes before a scheduled start, once per occurrence.</summary>
+    /// <summary>
+    /// Corner notice 5 minutes and again 1 minute before a scheduled start, once each per occurrence.
+    /// Rotina's own notice instead of a Windows notification, which Do Not Disturb or app settings can silence.
+    /// </summary>
     void WarnBeforeStart()
     {
         var now = DateTime.Now;
         foreach (var e in schedule.Where(e => e.Enabled && !e.Deleted && e.DaysOfWeek.Contains(now.DayOfWeek)))
         {
             var left = now.Date + e.StartTime.ToTimeSpan() - now;
-            if (left <= TimeSpan.Zero || left > TimeSpan.FromMinutes(5) || !warned.Add($"{e.Id}:{now:yyyy-MM-dd}")) continue;
-            var name = activities.FirstOrDefault(a => a.Id == e.ActivityId)?.Name ?? "Uma atividade";
-            tray.ShowBalloonTip(10_000, $"{name} começa em 5 minutos", "Salve o que estiver fazendo.", System.Windows.Forms.ToolTipIcon.Info);
+            if (left <= TimeSpan.Zero || left > TimeSpan.FromMinutes(5)) continue;
+            var minutes = (int)Math.Ceiling(left.TotalMinutes);
+            var stage = minutes <= 1 ? 1 : 5; // a start saved 3 minutes ahead still gets its "3 minutes" and "1 minute" notices
+            if (!warned.Add($"{e.Id}:{now:yyyy-MM-dd}:{stage}")) continue;
+            var activity = activities.FirstOrDefault(a => a.Id == e.ActivityId);
+            BlockToast.Notify($"{activity?.Name ?? "Uma atividade"} começa em {minutes} {(minutes == 1 ? "minuto" : "minutos")}",
+                "Salve o que estiver fazendo.", ColorBrush(activity?.Color ?? Palette[0].Hex));
         }
     }
     DateTime todayShown;
@@ -152,6 +159,7 @@ public partial class MainWindow : Window
                 ShowState("SEM CONEXÃO", "O serviço Rotina não está rodando", null,
                     "Inicie o Rotina Service. Enquanto isso, nada pode ser editado.", null);
                 EndButton.Visibility = Visibility.Collapsed;
+                StartNextButton.Visibility = Visibility.Collapsed;
                 StartList.IsEnabled = false;
                 UpdateTray(null);
                 return;
@@ -178,6 +186,9 @@ public partial class MainWindow : Window
             }
             EndButton.Visibility = s.State == RuleState.Completable ? Visibility.Visible : Visibility.Collapsed;
             StartList.IsEnabled = s.State != RuleState.Locked;
+            StartNextButton.Visibility = s.Next is not null && s.State != RuleState.Locked ? Visibility.Visible : Visibility.Collapsed;
+            if (s.Next is { } next)
+                StartNextButton.Content = $"Antecipar: {next.ActivityName} ({next.At.ToLocalTime():HH:mm}{(next.At.ToLocalTime().Date == DateTime.Today ? "" : $", {next.At.ToLocalTime():dd/MM}")})";
             StartHint.Text = s.State == RuleState.Locked
                 ? "Disponível quando a atividade atual atingir o tempo mínimo."
                 : activities.Count == 0 ? "Nenhuma atividade ainda. Crie uma na aba Atividades." : "Escolha uma atividade para começar agora.";
@@ -212,6 +223,7 @@ public partial class MainWindow : Window
             : s.RecoveryConfirmed ? "Chave gerada e entregue."
             : "Chave gerada, mas você ainda não confirmou que a entregou.";
         GenerateKeyButton.Visibility = s.RecoveryKeySet ? Visibility.Collapsed : Visibility.Visible;
+        ConfirmKeyButton.Visibility = s.RecoveryKeySet && !s.RecoveryConfirmed ? Visibility.Visible : Visibility.Collapsed;
         var prod = s.Mode == AppMode.Production;
         ModeStatus.Text = prod
             ? "Produção: os tempos mínimos contam em minutos e as proteções estão ligadas."
@@ -332,6 +344,16 @@ public partial class MainWindow : Window
             MessageBox.Show(this, $"Isso encerra {cur.RulesSnapshot.Name} e inicia {a.Name}. Continuar?", "Rotina",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         await Busy((Button)sender, () => Send<Session>(HttpMethod.Post, "sessions/start", new StartRequest(a.Id)));
+        await RefreshState();
+    }
+
+    async void StartNext_Click(object sender, RoutedEventArgs e)
+    {
+        if (state?.Next is not { } next) return;
+        var ending = state is { State: RuleState.Completable, Session: { } cur } ? $"Isso encerra {cur.RulesSnapshot.Name} e inicia" : "Iniciar";
+        if (MessageBox.Show(this, $"{ending} {next.ActivityName} agora, antes das {next.At.ToLocalTime():HH:mm}? No horário ela não começa de novo.",
+                "Rotina", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        await Busy(StartNextButton, () => Send<Session>(HttpMethod.Post, "sessions/start-next"));
         await RefreshState();
     }
 

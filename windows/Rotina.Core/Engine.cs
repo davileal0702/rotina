@@ -96,6 +96,41 @@ public sealed class Engine(TimeZoneInfo zone, TimeSpan minUnit, string deviceId)
         return new(running with { EndedAt = startAt }, NewSession(id, p.Activity, startAt, SessionOrigin.Schedule));
     }
 
+    /// <summary>First occurrence strictly after now.</summary>
+    public DateTimeOffset? NextOccurrence(ScheduleEntry e, DateTimeOffset now)
+    {
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
+        for (var ahead = 0; ahead <= 7; ahead++)
+        {
+            var date = today.AddDays(ahead);
+            if (!e.DaysOfWeek.Contains(date.DayOfWeek)) continue;
+            var at = ToUtc(date.ToDateTime(e.StartTime));
+            if (at > now) return at;
+        }
+        return null;
+    }
+
+    /// <summary>The soonest scheduled start after now that was not already started early.</summary>
+    public PendingStart? NextStart(IEnumerable<ScheduleEntry> entries, IReadOnlyDictionary<Guid, Activity> activities,
+        Func<Guid, bool> sessionExists, DateTimeOffset now) =>
+        entries.Where(e => e.Enabled && !e.Deleted && activities.TryGetValue(e.ActivityId, out var a) && !a.Deleted)
+            .Select(e => NextOccurrence(e, now) is { } at ? new PendingStart(e, activities[e.ActivityId], at) : null)
+            .Where(p => p is not null && !sessionExists(ScheduledSessionId(p.Entry, p.At)))
+            .MinBy(p => p!.At);
+
+    /// <summary>
+    /// "Start it now": begins the next scheduled activity early. It gets that occurrence's session id,
+    /// so when the scheduled time comes nothing starts a second time (the session already exists).
+    /// </summary>
+    public Session StartEarly(Session? current, PendingStart next, DateTimeOffset now, out Session? ended)
+    {
+        if (next.Activity.Deleted) throw new RuleException("Atividade excluída.");
+        if (StateOf(current, now) == RuleState.Locked)
+            throw new RuleException("A atividade atual ainda não atingiu o tempo mínimo.");
+        ended = current is { EndedAt: null } ? current with { EndedAt = now } : null;
+        return NewSession(ScheduledSessionId(next.Entry, next.At), next.Activity, now, SessionOrigin.Schedule);
+    }
+
     public DateTimeOffset? LatestOccurrence(ScheduleEntry e, DateTimeOffset now)
     {
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);

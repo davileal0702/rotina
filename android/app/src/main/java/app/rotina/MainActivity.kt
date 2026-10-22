@@ -162,6 +162,24 @@ private fun HomeScreen(now: Instant) {
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         }
+        val next = if (state == RuleState.LOCKED) null else Repo.nextStart(now)
+        if (next != null) {
+            var confirm by remember { mutableStateOf(false) }
+            val zone = ZoneId.of(Repo.data.zoneId)
+            val at = next.at.atZone(zone)
+            val sameDay = at.toLocalDate() == now.atZone(zone).toLocalDate()
+            val label = "%02d:%02d".format(at.hour, at.minute) + if (sameDay) "" else ", %02d/%02d".format(at.dayOfMonth, at.monthValue)
+            OutlinedButton(onClick = {
+                if (!confirm) { confirm = true; return@OutlinedButton }
+                confirm = false
+                runCatching { Repo.startEarly() }.onFailure { error = it.message }
+                Scheduler.sync(context)
+                Sync.soon(context)
+            }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).heightIn(min = 48.dp)) {
+                // Two taps: the first only asks, so a stray touch never starts (and locks) an activity.
+                Text(if (confirm) "Toque de novo para iniciar ${next.activity.name} agora" else "Antecipar: ${next.activity.name} ($label)")
+            }
+        }
         if (Repo.data.development) Text("Modo desenvolvimento: os tempos mínimos contam em segundos.", fontSize = 12.sp, color = Muted, modifier = Modifier.padding(top = 8.dp))
 
         Text("Hoje", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 28.dp, bottom = 8.dp).semantics { heading() })

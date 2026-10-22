@@ -43,11 +43,12 @@ object Scheduler {
         val next = listOfNotNull(nextStart, minEnds).minOrNull()
 
         setAlarm(context, 0, next, null)
-        // Heads-up 5 minutes before the next scheduled start, so there is time to save and wrap up.
-        setAlarm(context, 1, nextStart?.minusSeconds(WARN_SECONDS)?.takeIf { it > now }, AlarmReceiver.WARN)
+        // Heads-up 5 minutes and again 1 minute before the next scheduled start: the next of those still ahead.
+        val warnAt = nextStart?.let { s -> WARN_MINUTES.map { s.minusSeconds(it * 60) }.firstOrNull { it > now } }
+        setAlarm(context, 1, warnAt, AlarmReceiver.WARN)
     }
 
-    const val WARN_SECONDS = 5 * 60L
+    val WARN_MINUTES = listOf(5L, 1L)
 
     private fun setAlarm(context: Context, code: Int, at: Instant?, action: String?) {
         val alarms = context.getSystemService(AlarmManager::class.java)
@@ -75,17 +76,19 @@ class AlarmReceiver : BroadcastReceiver() {
     private fun warn(context: Context) {
         val now = Repo.now()
         val acts = Repo.activities()
+        // Seconds until each start within the next 5 minutes (plus a little slack for a late alarm).
         val soon = Repo.data.schedule
             .filter { it.enabled && !it.deleted && acts[it.activityId]?.deleted == false }
-            .filter { e -> Repo.engine.nextOccurrence(e, now)?.let { it.epochSecond - now.epochSecond in 0..Scheduler.WARN_SECONDS + 60 } == true }
-            .mapNotNull { acts[it.activityId]?.name }
-            .distinct()
+            .mapNotNull { e -> Repo.engine.nextOccurrence(e, now)?.let { acts.getValue(e.activityId).name to it.epochSecond - now.epochSecond } }
+            .filter { (_, secs) -> secs in 0..6 * 60 }
         if (soon.isEmpty()) return
+        val minutes = ((soon.minOf { it.second } + 59) / 60).coerceAtLeast(1)
+        val names = soon.map { it.first }.distinct().joinToString(", ")
         val nm = context.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel("warn", "Aviso antes da atividade", NotificationManager.IMPORTANCE_DEFAULT))
         nm.notify(2, Notification.Builder(context, "warn")
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("${soon.joinToString(", ")} começa em 5 minutos")
+            .setContentTitle("$names começa em $minutes ${if (minutes == 1L) "minuto" else "minutos"}")
             .setContentText("Salve o que estiver fazendo.")
             .setAutoCancel(true)
             .build())

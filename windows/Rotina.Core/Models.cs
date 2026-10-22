@@ -85,7 +85,10 @@ public static class Api
 // API shapes shared by the service and the desktop app.
 public sealed record AllowedLists(List<string> Android, List<string> Windows, List<string> Web);
 public sealed record StateDto(RuleState State, Session? Session, int SecondsUntilCompletable,
-    AllowedLists? Allowed, Guid? QueuedActivityId, AppMode Mode, int? ExtensionSeenSecondsAgo = null);
+    AllowedLists? Allowed, Guid? QueuedActivityId, AppMode Mode, int? ExtensionSeenSecondsAgo = null,
+    NextStartDto? Next = null);
+/// <summary>The next scheduled start, for the "start it now" button.</summary>
+public sealed record NextStartDto(Guid EntryId, string ActivityName, string Color, DateTimeOffset At);
 public sealed record ScheduleSaveResult(List<ScheduleEntry> Entries, List<string> Warnings);
 public sealed record StartRequest(Guid ActivityId);
 

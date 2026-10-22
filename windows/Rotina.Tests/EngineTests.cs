@@ -193,6 +193,35 @@ public class EngineTests
         Assert.Equal(later, Engine.MergeSession(later, null, null).Writes.Single());
     }
 
+    [Fact]
+    public void Starting_the_next_activity_early_does_not_start_it_again_at_its_time()
+    {
+        var e = Entry(study, 10); // Monday 10:00
+        var next = engine.NextStart([e], Acts, _ => false, Mon8)!;
+        Assert.Equal(Mon8.AddHours(2), next.At);
+        var early = engine.StartEarly(null, next, Mon8, out _);
+        Assert.Equal(Mon8, early.StartedAt);
+        Assert.Equal(engine.ScheduledSessionId(e, Mon8.AddHours(2)), early.Id);
+        // At 10:00 the occurrence's session already exists: no second start.
+        var ended = early with { EndedAt = Mon8.AddMinutes(40) };
+        Assert.Null(engine.Tick(ended, [e], Acts, id => id == early.Id, Mon8.AddHours(2).AddSeconds(5)).Started);
+        // Already started early: no longer offered.
+        Assert.Null(engine.NextStart([e], Acts, id => id == early.Id, Mon8.AddMinutes(41)));
+        Assert.Throws<RuleException>(() => engine.StartEarly(Manual(gym, Mon8), next, Mon8.AddMinutes(1), out _));
+    }
+
+    [Fact]
+    public void Store_app_is_allowed_as_a_whole_package_in_any_version()
+    {
+        string[] allowed = [@"C:\Program Files\WindowsApps\SpotifyAB.SpotifyMusic_1.306.1921.0_x64__zpdnekdrzrea0\SpotifyLauncher.exe"];
+        // The player window is Spotify.exe, and after an update the folder has another version.
+        Assert.False(Blocking.ShouldBlock(@"C:\Program Files\WindowsApps\SpotifyAB.SpotifyMusic_1.400.0.0_x64__zpdnekdrzrea0\Spotify.exe",
+            allowed, @"C:\Windows\", ""));
+        Assert.True(Blocking.ShouldBlock(@"C:\Program Files\WindowsApps\Claude_3.1623.1.0_x64__pzs8sxrjxfjjc\app\Claude.exe",
+            allowed, @"C:\Windows\", ""));
+        Assert.Null(Blocking.StorePackageId(@"C:\Games\Jogo.exe"));
+    }
+
     [Theory]
     [InlineData(null, true)]   // never heard from the extension
     [InlineData(5, false)]
