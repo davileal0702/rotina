@@ -10,3 +10,6 @@ local.properties
 .idea/
 *.iml
 .kotlin/
+
+# Build outputs
+*.apk
